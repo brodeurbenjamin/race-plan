@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Race Day Plan · Hybrid_by_Ben</title>
+<meta name="description" content="Plan your race morning and the days around it, with phone reminders. Saved on your device only.">
+<style>
+  :root {
+    --bg:#f6f7f9; --card:#fff; --text:#16181d; --muted:#6a7280; --line:#e3e6eb;
+    --accent:#e4572e; --warn:#9a5b00; --warn-bg:#fff3d6; --good:#14804a; --good-bg:#e3f4ea; --move:#2a78d6; --move-bg:#e6f0fc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0e1116; --card:#171b22; --text:#eef0f3; --muted:#8e97a6; --line:#262c36;
+            --accent:#ff7a50; --warn:#f0b44c; --warn-bg:#2a2214; --good:#4cc38a; --good-bg:#15291f; --move:#6aa6f0; --move-bg:#16233a; }
+  }
+  * { box-sizing:border-box } [hidden] { display:none !important }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 16px 60px }
+  .crumb { font-size:13px; margin:0 0 12px } .crumb a { color:var(--muted); text-decoration:none }
+  h1 { font-size:24px; margin:0 0 2px } h2 { font-size:16px; margin:0 } h3 { font-size:14px; margin:0 0 6px }
+  .sub { color:var(--muted); margin:0 0 16px; max-width:65ch }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px }
+  .head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:0 0 12px; flex-wrap:wrap }
+  .notice { background:var(--warn-bg); color:var(--text); border-color:transparent; font-size:14px }
+  .notice b { color:var(--warn) }
+  label { display:block; font-size:13px; color:var(--muted); margin-bottom:4px }
+  input, select, textarea { display:block; width:100%; min-width:0; margin:0; padding:0 10px; height:44px; border:1px solid var(--line);
+         border-radius:8px; background:var(--bg); color:var(--text); font:inherit; font-size:16px /* stops iPhone zoom */ }
+  textarea { height:auto; min-height:70px; padding:10px; resize:vertical }
+  input[type=checkbox] { display:inline-block; width:20px; height:20px; vertical-align:-4px; margin-right:6px }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) }
+  .grid > div { min-width:0 } .full { grid-column:1/-1 }
+  button, .btn { padding:10px 16px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; font-weight:600;
+         cursor:pointer; display:inline-block; text-decoration:none; min-height:44px }
+  button.ghost, .btn.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent) }
+  button.plain { background:transparent; color:var(--muted); border:1px solid var(--line) }
+  button.danger { background:transparent; color:var(--accent); border:0; padding-left:0 }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; align-items:center }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+  .note { color:var(--muted); font-size:13px; margin:8px 0 0 } .empty { color:var(--muted); margin:0 }
+  .count { font-size:14px; margin:12px 0 0 } .count b { color:var(--accent) }
+  /* Timeline rows */
+  .rows { display:grid; gap:0 }
+  .row { display:grid; grid-template-columns:76px 1fr; gap:10px; width:100%; text-align:left; background:none; color:inherit; border:0;
+         border-top:1px solid var(--line); border-radius:0; padding:10px 0; font-weight:400; min-height:0 }
+  .row:first-child { border-top:0 }
+  .row:hover .what b { color:var(--accent) }
+  .when { font-variant-numeric:tabular-nums } .when b { display:block; font-size:16px } .when span { color:var(--muted); font-size:12px }
+  .what { min-width:0 } .what b { font-weight:600 } .what .amt { color:var(--muted) } .what .meta { display:block; font-size:12px; color:var(--muted); margin-top:2px } .tags { display:block }
+  .tag { display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:1px 8px; margin:3px 4px 0 0; border:1px solid var(--line); color:var(--muted) }
+  .tag.move { color:var(--move); background:var(--move-bg); border-color:transparent }
+  .tag.still { color:var(--muted) }
+  .tag.new { color:var(--warn); background:var(--warn-bg); border-color:transparent }
+  .tag.ok { color:var(--good); background:var(--good-bg); border-color:transparent }
+  .tag.now { color:#fff; background:var(--accent); border-color:transparent }
+  .row.start { grid-template-columns:76px 1fr; }
+  .row.start .what b { color:var(--accent) }
+  .warns { margin:0; padding:0; list-style:none; display:grid; gap:8px }
+  .warns li { background:var(--warn-bg); border-radius:8px; padding:8px 10px; font-size:14px }
+  .warns li.info { background:var(--bg); border:1px solid var(--line) }
+  .warns li b { color:var(--warn) } .warns li.info b { color:var(--muted) }
+  .cue { display:flex; gap:12px; align-items:baseline }
+  .cue .at { font-weight:600; min-width:130px }
+  /* Editor */
+  dialog { border:1px solid var(--line); border-radius:14px; background:var(--card); color:var(--text); padding:0;
+           width:min(560px, calc(100vw - 24px)); max-height:calc(100vh - 24px) }
+  dialog::backdrop { background:rgba(0,0,0,.45) }
+  dialog form { padding:16px; display:grid; gap:12px }
+  dialog h2 { margin:0 }
+  fieldset { border:1px solid var(--line); border-radius:10px; padding:10px 12px 12px; margin:0; min-width:0 }
+  legend { font-size:13px; color:var(--muted); padding:0 4px }
+  .inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap } .inline > * { flex:1 1 120px }
+  .hint { font-size:12px; color:var(--muted); margin:4px 0 0 }
+  footer { color:var(--muted); font-size:12px; text-align:center; margin-top:28px }
+  footer p { margin:4px 0 } footer a { color:var(--accent); font-weight:600 }
+  /* Printing: only the chosen card, large and plain. */
+  @media print {
+    body { background:#fff; color:#000; font-size:16px }
+    .wrap > *:not(#planArea), #planArea > *:not(.printing) { display:none !important }
+    .printing { border:0; padding:0 } .printing .noprint { display:none !important }
+    .printing .cue { font-size:22px; padding:6px 0; border-bottom:1px solid #999 } .printing .cue .at { min-width:260px }
+    .row { break-inside:avoid; color:#000 } .tag { border-color:#999; color:#000; background:none }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="crumb"><a href="/">← Hybrid_by_Ben</a></p>
+  <h1>Race Day Plan</h1>
+  <p class="sub">Plan your race morning to the minute, and the days before and after. Get it as phone reminders, and print a cue card for the race.</p>
+
+  <div class="card notice">
+    <b>Your plan, your amounts.</b> This page never suggests doses or products. Only schedule what you've tested in training. Not medical advice.
+    Plans are saved on this device only; nothing is uploaded.
+  </div>
+
+  <!-- Which plan -->
+  <div class="card" id="plansCard">
+    <div id="noPlans">
+      <h2 style="margin-bottom:8px">Start a plan</h2>
+      <p class="empty">Start blank, or from an example with the usual race-morning slots and no amounts filled in.</p>
+      <div class="btns" style="margin-top:12px">
+        <button type="button" id="newBlank">Start blank</button>
+        <button type="button" class="ghost" id="newExample">Start from the example</button>
+        <button type="button" class="plain" id="importBtn1">Open a plan file</button>
+      </div>
+    </div>
+    <div id="havePlans" hidden>
+      <div class="grid">
+        <div class="full"><label for="planSel">Your plans</label><select id="planSel"></select></div>
+      </div>
+      <div class="btns" style="margin-top:12px">
+        <button type="button" class="ghost" id="newPlan">New plan</button>
+        <button type="button" class="plain" id="importBtn2">Open a plan file</button>
+        <button type="button" class="danger" id="delPlan">Delete this plan</button>
+      </div>
+    </div>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+    <p class="note" id="planMsg" role="status"></p>
+  </div>
+
+  <div id="planArea" hidden>
+    <!-- Race -->
+    <div class="card">
+      <div class="head"><h2>Race</h2></div>
+      <div class="grid">
+        <div class="full"><label for="rName">Race name</label><input id="rName" maxlength="80" placeholder="e.g. HYROX Paris, Men's Pro"></div>
+        <div><label for="rDate">Race date</label><input id="rDate" type="date"></div>
+        <div><label for="rStart">Your start time (your wave)</label><input id="rStart" type="time"></div>
+        <div class="full"><label for="rTz">Race time zone</label><select id="rTz"></select>
+          <p class="hint">Times show in race-local time, so they stay right after you travel.</p></div>
+      </div>
+      <p class="count" id="countdown"></p>
+    </div>
+
+    <div class="card" id="warnCard" hidden>
+      <div class="head"><h2>Check these</h2></div>
+      <ul class="warns" id="warns"></ul>
+    </div>
+
+    <!-- Race morning -->
+    <div class="card" id="morningCard">
+      <div class="head"><h2>Race morning</h2>
+        <button type="button" class="plain noprint" data-print="morningCard">Print</button></div>
+      <div class="rows" id="morning"></div>
+      <div class="btns noprint" style="margin-top:12px">
+        <button type="button" id="addItem">Add an item</button>
+      </div>
+      <div class="grid noprint" style="margin-top:12px">
+        <div><label for="cafLimit">Caffeine limit, mg (optional)</label><input id="cafLimit" type="number" inputmode="numeric" min="0" max="5000" placeholder="Your own limit"></div>
+      </div>
+      <p class="hint noprint">Tap an item to change it. The caffeine total adds up whatever you enter; the limit is yours to set.</p>
+    </div>
+
+    <!-- Days around the race -->
+    <div class="card" id="daysCard">
+      <div class="head"><h2>Days before and after</h2>
+        <button type="button" class="plain noprint" data-print="daysCard">Print</button></div>
+      <div class="rows" id="days"></div>
+      <div class="btns noprint" style="margin-top:12px"><button type="button" id="addDay">Add a day item</button></div>
+      <p class="hint noprint">For things on the days around the race: a daily supplement, travel, a shakeout.</p>
+    </div>
+
+    <!-- In race -->
+    <div class="card" id="cuesCard">
+      <div class="head"><h2>In-race cue card</h2>
+        <button type="button" class="plain noprint" data-print="cuesCard">Print</button></div>
+      <h3 id="cuesTitle" hidden></h3>
+      <div class="rows" id="cues"></div>
+      <div class="btns noprint" style="margin-top:12px"><button type="button" id="addCue">Add a cue</button></div>
+      <p class="hint noprint">Reminders by race segment, e.g. "During Run 3: gel". Print it, or screenshot it for your lock screen.</p>
+    </div>
+
+    <!-- Export -->
+    <div class="card">
+      <div class="head"><h2>Reminders and backup</h2></div>
+      <div class="grid">
+        <div><label for="alertMin">Reminder</label>
+          <select id="alertMin"><option value="0">At the time</option><option value="5">5 min before</option><option value="10">10 min before</option><option value="15">15 min before</option></select></div>
+        <div style="align-self:end"><label style="color:var(--text);margin:0 0 10px"><input type="checkbox" id="icsDays" checked>Include days before and after</label></div>
+      </div>
+      <div class="btns" style="margin-top:12px">
+        <button type="button" id="icsBtn">Add to my calendar (.ics)</button>
+        <button type="button" class="ghost" id="saveFile">Save plan file</button>
+      </div>
+      <p class="hint">Calendar: on iPhone, open the downloaded file and tap Add All; each item gets an alert. Race-morning times are set in the race's time zone; day items happen at that time wherever you are.</p>
+      <p class="hint">Plan file: a backup, or a way to move this plan to another device (open it with "Open a plan file").</p>
+    </div>
+  </div>
+
+  <footer>
+    <p>Questions or problems? Email <a href="mailto:support@hybridbyben.com">support@hybridbyben.com</a></p>
+    <p>© 2026 Hybrid_by_Ben. All rights reserved.</p>
+  </footer>
+</div>
+
+<!-- Editors -->
+<dialog id="itemDlg"><form method="dialog" id="itemForm">
+  <h2 id="itemTitle">Item</h2>
+  <div class="grid">
+    <div class="full"><label for="iLabel">What</label><input id="iLabel" maxlength="80" required placeholder="e.g. Breakfast"></div>
+    <div><label for="iKind">Type</label><select id="iKind"></select></div>
+    <div><label for="iOffset">Time before start (h:mm)</label><input id="iOffset" inputmode="text" placeholder="1:30" autocomplete="off"></div>
+    <div><label for="iClock">or at (race time)</label><input id="iClock" type="time"></div>
+    <div class="full act"><div class="inline">
+      <div><label for="iDur">Lasts (min)</label><input id="iDur" type="number" inputmode="numeric" min="0" max="600"></div>
+      <div><label for="iMoving">During it you're</label><select id="iMoving"><option value="1">Moving</option><option value="0">Still (sitting or standing)</option></select></div>
+    </div></div>
+    <div class="full notact"><label for="iAmount">Amount or details (your own)</label><input id="iAmount" maxlength="200" placeholder="What you tested in training"></div>
+    <div class="notact"><label for="iCaf">Caffeine in it, mg (optional)</label><input id="iCaf" type="number" inputmode="numeric" min="0" max="2000"></div>
+    <div class="full notact"><label for="iReh">Rehearsed (when, and how it went)</label><input id="iReh" maxlength="300" placeholder="e.g. 4 Oct 5K, no issues"></div>
+  </div>
+  <fieldset class="notact"><legend>Timing rules (optional)</legend>
+    <div class="inline">
+      <div><label for="iBeforeMin">At least (min)</label><input id="iBeforeMin" type="number" inputmode="numeric" min="0"></div>
+      <div><label for="iBeforeId">before</label><select id="iBeforeId"></select></div>
+    </div>
+    <p class="hint">Warns if this item is closer than that to the other one.</p>
+    <label style="color:var(--text);margin-top:10px"><input type="checkbox" id="iReact">Has a reaction window: I need to be moving then</label>
+    <div class="inline" id="reactBox">
+      <div><label for="iFrom">From (min after)</label><input id="iFrom" type="number" inputmode="numeric" min="0"></div>
+      <div><label for="iTo">to (min after)</label><input id="iTo" type="number" inputmode="numeric" min="0"></div>
+    </div>
+    <p class="hint">The window shows on the plan, with a warning if you're not scheduled to be moving then. Use the times you saw in training.</p>
+  </fieldset>
+  <div><label for="iNote">Note</label><textarea id="iNote" maxlength="500"></textarea></div>
+  <p class="note err" id="itemErr" role="alert"></p>
+  <div class="btns"><button value="save" id="itemSave">Save</button><button value="cancel" class="plain" formnovalidate>Cancel</button>
+    <button value="delete" class="danger" id="itemDel" formnovalidate>Delete</button></div>
+</form></dialog>
+
+<dialog id="dayDlg"><form method="dialog" id="dayForm">
+  <h2 id="dayTitle">Day item</h2>
+  <div class="grid">
+    <div class="full"><label for="dLabel">What</label><input id="dLabel" maxlength="80" required placeholder="e.g. Shakeout run"></div>
+    <div class="full"><label for="dAmount">Amount or details (your own)</label><input id="dAmount" maxlength="200"></div>
+    <div><label for="dFirst">From</label><select id="dFirst"></select></div>
+    <div><label for="dLast">to</label><select id="dLast"></select></div>
+    <div><label for="dTime">Reminder time (optional)</label><input id="dTime" type="time"><p class="hint">Wherever you are that day. Calendar uses 8:00 AM if empty.</p></div>
+    <div class="full"><label for="dNote">Note</label><textarea id="dNote" maxlength="500"></textarea></div>
+  </div>
+  <div class="btns"><button value="save">Save</button><button value="cancel" class="plain" formnovalidate>Cancel</button>
+    <button value="delete" class="danger" id="dayDel" formnovalidate>Delete</button></div>
+</form></dialog>
+
+<dialog id="cueDlg"><form method="dialog" id="cueForm">
+  <h2 id="cueTitle">Cue</h2>
+  <div class="grid">
+    <div><label for="cWhen">When</label><select id="cWhen"><option value="before">Before</option><option value="during">During</option><option value="after">After</option></select></div>
+    <div><label for="cAt">Segment</label><select id="cAt"></select></div>
+    <div class="full"><label for="cText">Cue</label><input id="cText" maxlength="120" required placeholder="e.g. Gel"></div>
+  </div>
+  <div class="btns"><button value="save">Save</button><button value="cancel" class="plain" formnovalidate>Cancel</button>
+    <button value="delete" class="danger" id="cueDel" formnovalidate>Delete</button></div>
+</form></dialog>
+
+<script type="module">
+import * as P from './plan.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const STORE = 'hbb.race-day-plan.v1';
+const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+// ---- storage (this device only) ----
+let db = { current: null, plans: [] };
+try {
+  const raw = JSON.parse(localStorage.getItem(STORE));
+  if (raw && Array.isArray(raw.plans)) db = { current: raw.current, plans: raw.plans.map((p) => { try { return P.normalisePlan(p); } catch { return null; } }).filter(Boolean) };
+} catch {}
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(db)); }
+  catch { $('planMsg').textContent = "Couldn't save on this device (private browsing?). Use Save plan file to keep a copy."; }
+}
+const plan = () => db.plans.find((p) => p.id === db.current);
+
+// ---- setup of selects ----
+$('iKind').innerHTML = Object.entries(P.KINDS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+$('cAt').innerHTML = P.SEGMENTS.map((s) => `<option>${esc(s)}</option>`).join('');
+const dayOpts = [];
+for (let d = -28; d <= 7; d++) dayOpts.push(`<option value="${d}">${esc(P.relDay(d))}</option>`);
+$('dFirst').innerHTML = $('dLast').innerHTML = dayOpts.join('');
+function fillZones(current) {
+  let zones = [];
+  try { zones = Intl.supportedValuesOf('timeZone'); } catch {}
+  for (const z of [current, deviceTz, 'UTC']) if (z && !zones.includes(z)) zones.push(z);
+  zones.sort();
+  $('rTz').innerHTML = zones.map((z) => `<option${z === current ? ' selected' : ''}>${esc(z)}</option>`).join('');
+}
+
+// ---- rendering ----
+function render() {
+  const p = plan();
+  $('noPlans').hidden = db.plans.length > 0;
+  $('havePlans').hidden = db.plans.length === 0;
+  $('planArea').hidden = !p;
+  $('planSel').innerHTML = db.plans.map((x) => `<option value="${esc(x.id)}"${x.id === db.current ? ' selected' : ''}>${esc(x.race.name || 'Untitled race')} · ${esc(P.dayLabel(x.race.date))}</option>`).join('');
+  if (!p) return;
+
+  $('rName').value = p.race.name; $('rDate').value = p.race.date; $('rStart').value = p.race.start;
+  fillZones(p.race.tz);
+  $('cafLimit').value = p.settings.caffeineLimit ?? '';
+  $('alertMin').value = String(p.settings.alertMin || 0);
+  const n = P.daysBetween(localToday(), p.race.date);
+  $('countdown').innerHTML = n > 1 ? `Race day in <b>${n} days</b>: ${esc(P.dayLabel(p.race.date))}, start ${esc(P.ampm(p.race.start))} race time.`
+    : n === 1 ? `Race day is <b>tomorrow</b>, start ${esc(P.ampm(p.race.start))} race time.`
+    : n === 0 ? `<b>Race day today.</b> Start ${esc(P.ampm(p.race.start))} race time.` : `This race was ${-n} day${n === -1 ? '' : 's'} ago.`;
+
+  // Warnings
+  const w = P.warnings(p);
+  $('warnCard').hidden = !w.length;
+  $('warns').innerHTML = w.map((x) => `<li class="${x.level}"><b>${x.level === 'warn' ? 'Check:' : 'Note:'}</b> ${esc(x.text)}</li>`).join('');
+  const flagged = new Set(w.filter((x) => x.level === 'warn').flatMap((x) => x.ids));
+
+  // Morning
+  const run = P.caffeineRunning(p);
+  const anyCaf = p.items.some((i) => i.caffeine > 0);
+  const clock = (t) => { const c = P.clockAt(p.race.start, t); return `${P.ampm(c.hhmm)}${c.day < 0 ? ' (day before)' : ''}`; };
+  const rows = P.sortedItems(p).map((i) => {
+    const tags = [];
+    if (i.kind === 'activity') {
+      tags.push(`<span class="tag ${i.moving ? 'move' : 'still'}">${i.moving ? 'Moving' : 'Still'}${i.duration ? ` · ${i.duration} min, to ${esc(clock(i.offset - i.duration))}` : ''}</span>`);
+    } else {
+      if (i.caffeine > 0) tags.push(`<span class="tag">+${i.caffeine} mg caffeine · ${run.get(i.id)} mg so far</span>`);
+      if (i.kind !== 'other') tags.push(String(i.rehearsed).trim() ? `<span class="tag ok">Rehearsed</span>` : `<span class="tag new">Not rehearsed</span>`);
+    }
+    if (flagged.has(i.id)) tags.push(`<span class="tag new">Check timing</span>`);
+    const react = i.reaction && i.reaction.to > i.reaction.from
+      ? `<span class="meta">Reaction window ${esc(P.tminus(i.offset - i.reaction.from))} to ${esc(P.tminus(i.offset - i.reaction.to))} (${esc(clock(i.offset - i.reaction.from))}–${esc(clock(i.offset - i.reaction.to))})${i.reaction.moving ? ': be moving' : ''}</span>` : '';
+    const rule = i.before && p.items.find((o) => o.id === i.before.id)
+      ? `<span class="meta">At least ${i.before.min} min before ${esc(p.items.find((o) => o.id === i.before.id).label)}</span>` : '';
+    return `<button type="button" class="row" data-item="${esc(i.id)}">
+      <span class="when"><b>${esc(clock(i.offset))}</b><span>${esc(P.tminus(i.offset))}</span></span>
+      <span class="what"><b>${esc(i.label)}</b>${i.amount ? ` <span class="amt">· ${esc(i.amount)}</span>` : ''}
+        ${i.note ? `<span class="meta">${esc(i.note)}</span>` : ''}${rule}${react}<span class="tags">${tags.join('')}</span></span></button>`;
+  });
+  rows.push(`<div class="row start"><span class="when"><b>${esc(P.ampm(p.race.start))}</b><span>T-0:00</span></span>
+    <span class="what"><b>Start</b>${anyCaf ? ` <span class="amt">· ${run.size ? Math.max(...run.values()) : 0} mg caffeine in total</span>` : ''}</span></div>`);
+  $('morning').innerHTML = p.items.length ? rows.join('') : `<p class="empty">Nothing yet. Add your breakfast, warm-up and anything you take, timed back from your start.</p>`;
+
+  // Days around the race
+  const today = localToday();
+  const days = [...p.leadIn].sort((a, b) => a.first - b.first || a.last - b.last);
+  $('days').innerHTML = days.length ? days.map((l) => {
+    const s = P.leadInStatus(p.race, l, today);
+    const range = s.from === s.to ? P.dayLabel(s.from) : `${P.dayLabel(s.from)} – ${P.dayLabel(s.to)}`;
+    return `<button type="button" class="row" data-day="${esc(l.id)}">
+      <span class="when"><b>${esc(l.first === l.last ? (l.first === 0 ? 'Race day' : (l.first < 0 ? `${-l.first}d before` : `${l.first}d after`)) : `${l.last - l.first + 1} days`)}</b><span>${l.time ? esc(P.ampm(l.time)) : ''}</span></span>
+      <span class="what"><b>${esc(l.label)}</b>${l.amount ? ` <span class="amt">· ${esc(l.amount)}</span>` : ''}
+        <span class="meta">${esc(range)} · ${esc(P.relDayRange(l))}</span>${l.note ? `<span class="meta">${esc(l.note)}</span>` : ''}
+        <span class="tags"><span class="tag ${s.state === 'now' ? 'now' : s.state === 'done' ? '' : 'move'}">${esc(s.text)}</span></span></span></button>`;
+  }).join('') : `<p class="empty">Nothing yet.</p>`;
+
+  // Cues
+  $('cuesTitle').textContent = p.race.name || 'Race';
+  const cues = P.sortedCues(p);
+  $('cues').innerHTML = cues.length ? cues.map((c) => `<button type="button" class="row cue" data-cue="${esc(c.id)}" style="display:flex">
+      <span class="at">${esc(P.cueWhen(c))}</span><span>${esc(c.text)}</span></button>`).join('') : `<p class="empty">Nothing yet.</p>`;
+}
+
+function update(fn) { const p = plan(); if (!p) return; fn(p); save(); render(); }
+
+// ---- plans ----
+function addPlan(p) { db.plans.push(p); db.current = p.id; save(); render(); $('planMsg').textContent = ''; }
+$('newBlank').onclick = () => addPlan(P.blankPlan(localToday(), deviceTz));
+$('newExample').onclick = () => addPlan(P.examplePlan(localToday(), deviceTz));
+$('newPlan').onclick = () => {
+  const ex = confirm('Start from the example? (OK = example with the usual slots, Cancel = blank)');
+  addPlan(ex ? P.examplePlan(localToday(), deviceTz) : P.blankPlan(localToday(), deviceTz));
+};
+$('planSel').onchange = () => { db.current = $('planSel').value; save(); render(); };
+$('delPlan').onclick = () => {
+  const p = plan();
+  if (!p || !confirm(`Delete "${p.race.name || 'Untitled race'}" from this device? Save a plan file first if you want a copy.`)) return;
+  db.plans = db.plans.filter((x) => x.id !== p.id);
+  db.current = db.plans[0]?.id ?? null;
+  save(); render();
+};
+$('importBtn1').onclick = $('importBtn2').onclick = () => $('importFile').click();
+$('importFile').onchange = async () => {
+  const f = $('importFile').files[0];
+  $('importFile').value = '';
+  if (!f) return;
+  try {
+    const p = P.normalisePlan(JSON.parse(await f.text()));
+    const same = db.plans.findIndex((x) => x.id === p.id);
+    if (same >= 0) {
+      if (!confirm(`You already have "${db.plans[same].race.name || 'this plan'}" on this device. Replace it with the file?`)) { p.id = P.uid(); db.plans.push(p); }
+      else db.plans[same] = p;
+    } else db.plans.push(p);
+    db.current = p.id; save(); render();
+    $('planMsg').textContent = `Opened "${p.race.name || 'Untitled race'}".`;
+  } catch {
+    $('planMsg').textContent = "That file isn't a Race Day Plan file.";
+  }
+};
+
+// ---- race fields ----
+$('rName').onchange = () => update((p) => { p.race.name = $('rName').value.trim().slice(0, 80); });
+$('rDate').onchange = () => { if ($('rDate').value) update((p) => { p.race.date = $('rDate').value; }); };
+$('rStart').onchange = () => { if ($('rStart').value) update((p) => { p.race.start = $('rStart').value.slice(0, 5); }); };
+$('rTz').onchange = () => update((p) => { p.race.tz = $('rTz').value; });
+$('cafLimit').onchange = () => update((p) => { const v = Math.round(+$('cafLimit').value); p.settings.caffeineLimit = v > 0 ? v : null; });
+$('alertMin').onchange = () => update((p) => { p.settings.alertMin = +$('alertMin').value; });
+
+// ---- item editor ----
+let editing = null;
+function syncActivity() {
+  const act = $('iKind').value === 'activity';
+  document.querySelectorAll('#itemForm .act').forEach((e) => { e.hidden = !act; });
+  document.querySelectorAll('#itemForm .notact').forEach((e) => { e.hidden = act; });
+  $('reactBox').hidden = !$('iReact').checked;
+}
+function clockToOffset(hhmm) {
+  const [h, m] = plan().race.start.split(':').map(Number);
+  const [a, b] = hhmm.split(':').map(Number);
+  return (((h * 60 + m) - (a * 60 + b)) % 1440 + 1440) % 1440;
+}
+$('iKind').onchange = syncActivity;
+$('iReact').onchange = syncActivity;
+$('iOffset').oninput = () => { const o = P.parseOffset($('iOffset').value); if (o !== null) $('iClock').value = P.clockAt(plan().race.start, o).hhmm; };
+$('iClock').oninput = () => { if ($('iClock').value) $('iOffset').value = P.hm(clockToOffset($('iClock').value)); };
+function openItem(id) {
+  const p = plan();
+  const i = p.items.find((x) => x.id === id) || { id: null, label: '', kind: 'food', offset: 60, amount: '', caffeine: 0, rehearsed: '', note: '', duration: 20, moving: true, before: null, reaction: null };
+  editing = i.id;
+  $('itemTitle').textContent = i.id ? 'Change item' : 'Add an item';
+  $('itemDel').hidden = !i.id;
+  $('iLabel').value = i.label; $('iKind').value = i.kind; $('iOffset').value = P.hm(i.offset);
+  $('iClock').value = P.clockAt(p.race.start, i.offset).hhmm;
+  $('iDur').value = i.duration ?? 20; $('iMoving').value = i.moving === false ? '0' : '1';
+  $('iAmount').value = i.amount; $('iCaf').value = i.caffeine || ''; $('iReh').value = i.rehearsed; $('iNote').value = i.note;
+  $('iBeforeId').innerHTML = '<option value="">(no rule)</option>' + P.sortedItems(p).filter((x) => x.id !== i.id && x.kind !== 'activity')
+    .map((x) => `<option value="${esc(x.id)}">${esc(x.label)} (${esc(P.tminus(x.offset))})</option>`).join('');
+  $('iBeforeId').value = i.before?.id || ''; $('iBeforeMin').value = i.before?.min || '';
+  $('iReact').checked = !!i.reaction; $('iFrom').value = i.reaction?.from ?? ''; $('iTo').value = i.reaction?.to ?? '';
+  $('itemErr').textContent = '';
+  syncActivity();
+  $('itemDlg').showModal();
+}
+$('morning').onclick = (e) => { const r = e.target.closest('[data-item]'); if (r) openItem(r.dataset.item); };
+$('addItem').onclick = () => openItem(null);
+$('itemForm').onsubmit = (e) => {
+  const action = e.submitter?.value;
+  if (action === 'delete') {
+    if (confirm('Delete this item?')) update((p) => {
+      p.items = p.items.filter((x) => x.id !== editing);
+      for (const x of p.items) if (x.before?.id === editing) x.before = null;
+    });
+    else e.preventDefault();
+    return;
+  }
+  if (action !== 'save') return;
+  const offset = P.parseOffset($('iOffset').value);
+  const err = !$('iLabel').value.trim() ? 'Give it a name.'
+    : offset === null || offset > 1440 ? 'Time before start: use h:mm, like 1:30 (or minutes, like 90).'
+    : $('iReact').checked && !(+$('iTo').value > +$('iFrom').value) ? 'Reaction window: the "to" minutes must be more than "from".' : '';
+  if (err) { e.preventDefault(); $('itemErr').textContent = err; return; }
+  const act = $('iKind').value === 'activity';
+  const item = {
+    id: editing || P.uid(), label: $('iLabel').value.trim().slice(0, 80), kind: $('iKind').value, offset,
+    amount: act ? '' : $('iAmount').value.trim(), caffeine: act ? 0 : Math.max(0, Math.round(+$('iCaf').value || 0)),
+    rehearsed: act ? '' : $('iReh').value.trim(), note: $('iNote').value.trim(),
+    ...(act ? { duration: Math.max(0, Math.round(+$('iDur').value || 0)), moving: $('iMoving').value === '1' } : {}),
+    before: !act && $('iBeforeId').value && +$('iBeforeMin').value > 0 ? { id: $('iBeforeId').value, min: Math.round(+$('iBeforeMin').value) } : null,
+    reaction: !act && $('iReact').checked ? { from: Math.round(+$('iFrom').value), to: Math.round(+$('iTo').value), moving: true } : null,
+  };
+  update((p) => { const k = p.items.findIndex((x) => x.id === item.id); if (k >= 0) p.items[k] = item; else p.items.push(item); });
+};
+
+// ---- day editor ----
+let editingDay = null;
+function openDay(id) {
+  const l = plan().leadIn.find((x) => x.id === id) || { id: null, label: '', amount: '', first: -3, last: -1, time: '', note: '' };
+  editingDay = l.id;
+  $('dayTitle').textContent = l.id ? 'Change day item' : 'Add a day item';
+  $('dayDel').hidden = !l.id;
+  $('dLabel').value = l.label; $('dAmount').value = l.amount; $('dFirst').value = String(l.first); $('dLast').value = String(l.last);
+  $('dTime').value = l.time; $('dNote').value = l.note;
+  $('dayDlg').showModal();
+}
+$('days').onclick = (e) => { const r = e.target.closest('[data-day]'); if (r) openDay(r.dataset.day); };
+$('addDay').onclick = () => openDay(null);
+$('dayForm').onsubmit = (e) => {
+  const action = e.submitter?.value;
+  if (action === 'delete') { update((p) => { p.leadIn = p.leadIn.filter((x) => x.id !== editingDay); }); return; }
+  if (action !== 'save') return;
+  if (!$('dLabel').value.trim()) { e.preventDefault(); $('dLabel').focus(); return; }
+  const a = +$('dFirst').value, b = +$('dLast').value;
+  const l = { id: editingDay || P.uid(), label: $('dLabel').value.trim().slice(0, 80), amount: $('dAmount').value.trim(),
+    first: Math.min(a, b), last: Math.max(a, b), time: $('dTime').value.slice(0, 5), note: $('dNote').value.trim() };
+  update((p) => { const k = p.leadIn.findIndex((x) => x.id === l.id); if (k >= 0) p.leadIn[k] = l; else p.leadIn.push(l); });
+};
+
+// ---- cue editor ----
+let editingCue = null;
+function openCue(id) {
+  const c = plan().cues.find((x) => x.id === id) || { id: null, at: 'Run 1', when: 'during', text: '' };
+  editingCue = c.id;
+  $('cueTitle').textContent = c.id ? 'Change cue' : 'Add a cue';
+  $('cueDel').hidden = !c.id;
+  $('cAt').value = c.at; $('cWhen').value = c.when; $('cText').value = c.text;
+  $('cueDlg').showModal();
+}
+$('cues').onclick = (e) => { const r = e.target.closest('[data-cue]'); if (r) openCue(r.dataset.cue); };
+$('addCue').onclick = () => openCue(null);
+$('cueForm').onsubmit = (e) => {
+  const action = e.submitter?.value;
+  if (action === 'delete') { update((p) => { p.cues = p.cues.filter((x) => x.id !== editingCue); }); return; }
+  if (action !== 'save') return;
+  if (!$('cText').value.trim()) { e.preventDefault(); $('cText').focus(); return; }
+  const c = { id: editingCue || P.uid(), at: $('cAt').value, when: $('cWhen').value, text: $('cText').value.trim().slice(0, 120) };
+  update((p) => { const k = p.cues.findIndex((x) => x.id === c.id); if (k >= 0) p.cues[k] = c; else p.cues.push(c); });
+};
+
+// ---- print, calendar, file ----
+document.querySelectorAll('[data-print]').forEach((b) => {
+  b.onclick = () => {
+    const card = $(b.dataset.print);
+    card.classList.add('printing');
+    $('cuesTitle').hidden = b.dataset.print !== 'cuesCard';
+    window.print();
+  };
+});
+window.addEventListener('afterprint', () => {
+  document.querySelectorAll('.printing').forEach((c) => c.classList.remove('printing'));
+  $('cuesTitle').hidden = true;
+});
+const slug = (p) => (p.race.name || 'race').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'race';
+function download(name, type, text) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = Object.assign(document.createElement('a'), { href: url, download: name });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+$('icsBtn').onclick = () => { const p = plan(); download(`${slug(p)}-plan.ics`, 'text/calendar', P.buildIcs(p, { leadIn: $('icsDays').checked })); };
+$('saveFile').onclick = () => { const p = plan(); download(`${slug(p)}-plan.json`, 'application/json', JSON.stringify(p, null, 2)); };
+
+if (!plan() && db.plans.length) db.current = db.plans[0].id;
+render();
+</script>
+</body>
+</html>

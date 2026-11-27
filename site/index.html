@@ -103,13 +103,9 @@
   footer { color:var(--muted); font-size:12px; text-align:center; margin-top:28px }
   footer p { margin:4px 0 } footer a { color:var(--accent); font-weight:600 }
   /* Printing: only the chosen card, large and plain. */
-  @media print {
-    body { background:#fff; color:#000; font-size:16px }
-    .wrap > *:not(#planArea), #planArea > *:not(.printing) { display:none !important }
-    .printing { border:0; padding:0 } .printing .noprint { display:none !important }
-    .printing .cue { font-size:22px; padding:6px 0; border-bottom:1px solid #999 } .printing .cue .at { min-width:260px }
-    .row { break-inside:avoid; color:#000 } .tag { border-color:#999; color:#000; background:none }
-  }
+  /* Saved-image preview */
+  #imgDlg .pv { max-height:60vh; overflow:auto; border:1px solid var(--line); border-radius:10px; background:#0e1116 }
+  #imgDlg .pv img { display:block; width:100% }
 </style>
 </head>
 <body>
@@ -189,15 +185,13 @@
 
     <!-- Day before -->
     <div class="card" id="daysCard">
-      <div class="head"><h2>Day before</h2>
-        <button type="button" class="plain noprint" data-print="daysCard">Print</button></div>
+      <div class="head"><h2>Day before</h2></div>
       <div class="rows" id="days"></div>
     </div>
 
     <!-- Morning of -->
     <div class="card" id="morningCard">
-      <div class="head"><h2>Morning of</h2>
-        <button type="button" class="plain noprint" data-print="morningCard">Print</button></div>
+      <div class="head"><h2>Morning of</h2></div>
       <div class="rows" id="morning"></div>
       <div class="grid noprint" style="margin-top:12px">
         <div><label for="cafLimit">Caffeine limit, mg (optional)</label><input id="cafLimit" type="number" inputmode="numeric" min="0" max="5000" placeholder="Your own limit"></div>
@@ -207,31 +201,30 @@
 
     <!-- Post race -->
     <div class="card" id="postCard">
-      <div class="head"><h2>Post race</h2>
-        <button type="button" class="plain noprint" data-print="postCard">Print</button></div>
+      <div class="head"><h2>Post race</h2></div>
       <div class="rows" id="post"></div>
     </div>
 
     <!-- In race -->
     <div class="card" id="cuesCard">
-      <div class="head"><h2>In-race cue card</h2>
-        <button type="button" class="plain noprint" data-print="cuesCard">Print</button></div>
-      <h3 id="cuesTitle" hidden></h3>
+      <div class="head"><h2>In-race cue card</h2></div>
       <div class="rows" id="cues"></div>
       <div class="btns noprint" style="margin-top:12px"><button type="button" id="addCue">Add a cue</button></div>
-      <p class="hint noprint">Reminders by race segment, e.g. "During Run 3: gel". Print it, or screenshot it for your lock screen.</p>
+      <p class="hint noprint">Reminders by race segment, e.g. "During Run 3: gel". They're included when you save your plan as an image.</p>
     </div>
 
     <!-- Export -->
     <div class="card">
-      <div class="head"><h2>Reminders and backup</h2></div>
+      <div class="head"><h2>Save and share</h2></div>
+      <div class="btns" style="margin-bottom:6px"><button type="button" id="imgBtn">Save as image</button></div>
+      <p class="hint" style="margin:0 0 16px">Your whole plan as one picture: day before, morning of, post race and your in-race cues. Keep it in Photos, or set it as your lock screen on race day.</p>
       <div class="grid">
         <div><label for="alertMin">Reminder</label>
           <select id="alertMin"><option value="0">At the time</option><option value="5">5 min before</option><option value="10">10 min before</option><option value="15">15 min before</option></select></div>
         <div style="align-self:end"><label style="color:var(--text);margin:0 0 10px"><input type="checkbox" id="icsDays" checked>Include days before and after</label></div>
       </div>
       <div class="btns" style="margin-top:12px">
-        <button type="button" id="icsBtn">Add to my calendar (.ics)</button>
+        <button type="button" class="ghost" id="icsBtn">Add to my calendar (.ics)</button>
         <button type="button" class="ghost" id="saveFile">Save plan file</button>
       </div>
       <p class="hint">Calendar: on iPhone, open the downloaded file and tap Add All; each item gets an alert. Race-morning times are set in the race's time zone; day items happen at that time wherever you are.</p>
@@ -244,6 +237,14 @@
     <p>© 2026 Hybrid_by_Ben. All rights reserved.</p>
   </footer>
 </div>
+
+<!-- Saved image -->
+<dialog id="imgDlg"><form method="dialog" style="padding:16px;display:grid;gap:12px">
+  <h2>Your plan as an image</h2>
+  <div class="pv"><img id="imgPv" alt="Your race day plan"></div>
+  <p class="hint" id="imgHint" style="margin:0"></p>
+  <div class="btns"><button type="button" id="imgShare">Save image</button><button value="close" class="plain">Close</button></div>
+</form></dialog>
 
 <!-- Editors -->
 <dialog id="itemDlg"><form method="dialog" id="itemForm">
@@ -442,7 +443,6 @@ function render() {
   H.post = post.length > 1 ? post.join('') : post[0] + `<p class="empty" style="margin-top:8px">Nothing yet. Add a cool-down, recovery meal or rest day in Post race above.</p>`;
 
   // Cues
-  $('cuesTitle').textContent = p.race.name || 'Race';
   const cues = P.sortedCues(p);
   H.cues = cues.length ? cues.map((c) => `<button type="button" class="row cue" data-cue="${esc(c.id)}" style="display:flex">
       <span class="at">${esc(P.cueWhen(c))}</span><span>${esc(c.text)}</span></button>`).join('') : `<p class="empty">Nothing yet.</p>`;
@@ -738,19 +738,97 @@ $('cueForm').onsubmit = (e) => {
   update((p) => { const k = p.cues.findIndex((x) => x.id === c.id); if (k >= 0) p.cues[k] = c; else p.cues.push(c); });
 };
 
-// ---- print, calendar, file ----
-document.querySelectorAll('[data-print]').forEach((b) => {
-  b.onclick = () => {
-    const card = $(b.dataset.print);
-    card.classList.add('printing');
-    $('cuesTitle').hidden = b.dataset.print !== 'cuesCard';
-    window.print();
+// ---- save as image ----
+// Draws the whole plan on a phone-shaped canvas (dark, like the site banner).
+function planImage(p) {
+  const W = 1080, PAD = 64, WHEN = 300, GAP = 28, TX = PAD + WHEN + GAP, TW = W - TX - PAD;
+  const C = { bg: '#0e1116', text: '#eef0f3', muted: '#8e97a6', line: '#262c36', accent: '#ff7a50' };
+  const F = (w, px) => `${w} ${px}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+  const sections = P.planSections(p);
+  const c = document.createElement('canvas'), x = c.getContext('2d');
+  const wrap = (text, font, max) => {
+    x.font = font;
+    const out = [];
+    for (const para of String(text).split('\n')) {
+      let line = '';
+      for (const word of para.split(' ')) {
+        const tryLine = line ? line + ' ' + word : word;
+        if (x.measureText(tryLine).width <= max || !line) line = tryLine; else { out.push(line); line = word; }
+        while (x.measureText(line).width > max && line.length > 1) {   // a single very long word
+          let k = line.length - 1;
+          while (k > 1 && x.measureText(line.slice(0, k)).width > max) k--;
+          out.push(line.slice(0, k)); line = line.slice(k);
+        }
+      }
+      out.push(line);
+    }
+    return out;
   };
-});
-window.addEventListener('afterprint', () => {
-  document.querySelectorAll('.printing').forEach((c) => c.classList.remove('printing'));
-  $('cuesTitle').hidden = true;
-});
+  // Lay out once to measure, then draw.
+  const ops = [];
+  let y = PAD;
+  const text = (str, font, color, left, max, lh) => { const lines = wrap(str, font, max); for (const l of lines) { ops.push(['t', l, font, color, left, y + lh * 0.78]); y += lh; } return lines.length * lh; };
+  ops.push(['r', 0, 0, W, 10, C.accent]);
+  y += 10;
+  text('Hybrid_by_Ben · Race Day Plan', F(700, 28), C.accent, PAD, W - 2 * PAD, 40);
+  y += 8;
+  text(p.race.name || 'My race', F(800, 56), C.text, PAD, W - 2 * PAD, 66);
+  text(`${P.dayLabel(p.race.date)} · start ${P.ampm(p.race.start)} · ${p.race.tz}`, F(500, 30), C.muted, PAD, W - 2 * PAD, 42);
+  for (const sec of sections) {
+    y += 40;
+    text(sec.title.toUpperCase(), F(800, 30), C.accent, PAD, W - 2 * PAD, 40);
+    y += 6;
+    for (const r of sec.rows) {
+      ops.push(['r', PAD, y, W - 2 * PAD, 2, C.line]);
+      y += 18;
+      const top = y;
+      text(r.when, F(700, 32), r.accent ? C.accent : C.text, PAD, WHEN, 40);
+      if (r.sub) text(r.sub, F(500, 26), C.muted, PAD, WHEN, 34);
+      const leftEnd = y;
+      y = top;
+      text(r.text, F(700, 32), r.accent ? C.accent : C.text, TX, TW, 40);
+      if (r.detail) text(r.detail, F(400, 28), C.muted, TX, TW, 38);
+      y = Math.max(y, leftEnd) + 18;
+    }
+  }
+  if (!sections.length) { y += 40; text('Nothing in your plan yet.', F(500, 32), C.muted, PAD, W - 2 * PAD, 44); }
+  y += 36;
+  text('hybridbyben.com/race-plan · only use what you tested in training', F(500, 24), C.muted, PAD, W - 2 * PAD, 34);
+  y += PAD - 20;
+  // Phones refuse very large canvases; shrink to fit if a plan is enormous.
+  const H = Math.ceil(y), scale = Math.min(1, 15000 / H);
+  c.width = Math.round(W * scale); c.height = Math.round(H * scale);
+  x.scale(scale, scale);
+  x.fillStyle = C.bg; x.fillRect(0, 0, W, H);
+  for (const o of ops) {
+    if (o[0] === 'r') { x.fillStyle = o[5]; x.fillRect(o[1], o[2], o[3], o[4]); }
+    else { x.font = o[2]; x.fillStyle = o[3]; x.fillText(o[1], o[4], o[5]); }
+  }
+  return c;
+}
+let imgFile = null;
+$('imgBtn').onclick = () => {
+  const p = plan();
+  planImage(p).toBlob((blob) => {
+    imgFile = new File([blob], `${slug(p)}-plan.png`, { type: 'image/png' });
+    $('imgPv').src = URL.createObjectURL(blob);
+    const canShare = !!(navigator.canShare && navigator.canShare({ files: [imgFile] }));
+    $('imgShare').textContent = canShare ? 'Save or share' : 'Download image';
+    $('imgHint').textContent = canShare ? 'Tap Save or share, then Save Image to keep it in Photos.' : 'Or press and hold the picture to save it.';
+    $('imgDlg').showModal();
+  }, 'image/png');
+};
+$('imgShare').onclick = async () => {
+  if (!imgFile) return;
+  if (navigator.canShare && navigator.canShare({ files: [imgFile] })) {
+    try { await navigator.share({ files: [imgFile], title: imgFile.name }); } catch {}   // cancelled: nothing to do
+  } else {
+    const a = Object.assign(document.createElement('a'), { href: $('imgPv').src, download: imgFile.name });
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+};
+
+// ---- calendar, file ----
 const slug = (p) => (p.race.name || 'race').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'race';
 function download(name, type, text) {
   const url = URL.createObjectURL(new Blob([text], { type }));

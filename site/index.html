@@ -200,8 +200,13 @@
     <!-- Export -->
     <div class="card">
       <div class="head"><h2>Save and share</h2></div>
-      <div class="btns" style="margin-bottom:6px"><button type="button" id="imgBtn">Save as image</button></div>
-      <p class="hint" style="margin:0 0 16px">Your whole plan as one picture: day before, morning of, post race and your in-race cues. Keep it in Photos, or set it as your lock screen on race day.</p>
+      <div class="btns" style="margin-bottom:6px">
+        <button type="button" id="imgBtn">Save as image</button>
+        <button type="button" class="ghost" id="copyBtn">Copy as text</button>
+        <button type="button" class="ghost" id="csvBtn">Export CSV</button>
+      </div>
+      <p class="note" id="shareMsg" role="status" style="margin:0 0 6px"></p>
+      <p class="hint" style="margin:0 0 16px">Your whole plan: day before, morning of, post race and your in-race cues. Save it as one picture for Photos or your lock screen, copy it as text to paste into Notes or a message, or export a CSV for a spreadsheet.</p>
       <div class="grid">
         <div><label for="alertMin">Reminder</label>
           <select id="alertMin"><option value="0">At the time</option><option value="5">5 min before</option><option value="10">10 min before</option><option value="15">15 min before</option></select></div>
@@ -794,6 +799,34 @@ $('imgShare').onclick = async () => {
   } else {
     const a = Object.assign(document.createElement('a'), { href: $('imgPv').src, download: imgFile.name });
     document.body.appendChild(a); a.click(); a.remove();
+  }
+};
+
+// ---- copy as text, CSV ----
+const say = (t) => { $('shareMsg').textContent = t; clearTimeout(say.t); say.t = setTimeout(() => { $('shareMsg').textContent = ''; }, 4000); };
+$('copyBtn').onclick = async () => {
+  const text = P.planText(plan());
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Older browsers: copy from a hidden text box.
+    const t = Object.assign(document.createElement('textarea'), { value: text });
+    t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select();
+    const ok = document.execCommand('copy'); t.remove();
+    if (!ok) { say("Couldn't copy on this browser. Try Save as image or Export CSV."); return; }
+  }
+  say('Copied. Paste it into Notes or a message.');
+};
+$('csvBtn').onclick = async () => {
+  const p = plan();
+  const name = `${slug(p)}-plan.csv`, csv = P.planCsv(p);
+  const file = new File([csv], name, { type: 'text/csv' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); } catch {}
+  } else {
+    download(name, 'text/csv;charset=utf-8', csv);
+    say(`Saved ${name}.`);
   }
 };
 

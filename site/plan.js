@@ -465,6 +465,43 @@ export function dayItems(plan) {
   return out;
 }
 
+// ---- the plan as one picture ----------------------------------------------------
+
+/**
+ * The whole plan as sections of rows, for the saved image:
+ * [{ title, rows: [{ when, sub, text, detail, accent }] }]. Day before,
+ * Morning of, Post race, In the race; empty sections are left out.
+ */
+export function planSections(plan) {
+  const clock = (t) => { const c = clockAt(plan.race.start, t); return ampm(c.hhmm) + (c.day < 0 ? ' (day before)' : c.day > 0 ? ' (next day)' : ''); };
+  const days = dayItems(plan).sort((a, b) => a.first - b.first || a.last - b.last);
+  const range = (l) => (l.first === l.last ? dayLabel(addDays(plan.race.date, l.first)) : `${dayLabel(addDays(plan.race.date, l.first))} – ${dayLabel(addDays(plan.race.date, l.last))}`);
+  const dayRow = (l) => ({ when: range(l), sub: l.time ? ampm(l.time) : '', text: l.label, detail: [l.amount, l.note].filter(Boolean).join(' · ') });
+  const unsetDay = (l) => ({ when: '—', sub: '', text: l.label, detail: 'Set your days' });
+  const unsetItem = (i) => ({ when: '—', sub: '', text: i.label, detail: 'Set your time' });
+  const itemRow = (i) => ({
+    when: clock(i.offset), sub: i.group === 'post' ? `+${hm(i.after)} after` : tminus(i.offset), text: i.label,
+    detail: [i.amount, i.kind === 'activity' && i.duration ? `${i.moving ? 'moving' : 'still'}, ${i.duration} min` : '',
+      i.reaction?.moving && i.reaction.to > i.reaction.from ? `be moving ${clock(i.offset - i.reaction.from)}–${clock(i.offset - i.reaction.to)}` : ''].filter(Boolean).join(' · '),
+  });
+  const items = sortedItems(plan);
+  const sections = [
+    { title: 'Day before', rows: [...plan.leadIn.filter((l) => l.first === null && l.group !== 'post').map(unsetDay), ...days.filter((l) => l.first < 0).map(dayRow)] },
+    { title: 'Morning of', rows: [...plan.items.filter((i) => i.offset === null && i.group !== 'post').map(unsetItem),
+      ...days.filter((l) => l.first === 0).map((l) => ({ ...dayRow(l), when: 'All day' })),
+      ...items.filter((i) => i.group !== 'post').map(itemRow),
+      { when: ampm(plan.race.start), sub: 'T-0:00', text: 'Start', detail: '', accent: true }] },
+    { title: 'Post race', rows: [{ when: clock(finishOffset(plan)), sub: 'about', text: 'Finish', detail: '', accent: true },
+      ...plan.items.filter((i) => i.offset === null && i.group === 'post').map(unsetItem),
+      ...items.filter((i) => i.group === 'post').map(itemRow),
+      ...days.filter((l) => l.first > 0).map(dayRow),
+      ...days.filter((l) => l.first <= 0 && l.last > 0).map((l) => ({ ...dayRow(l), when: `Until ${dayLabel(addDays(plan.race.date, l.last))}` }))] },
+    { title: 'In the race', rows: sortedCues(plan).map((c) => ({ when: cueWhen(c), sub: '', text: c.text, detail: '' })) },
+  ];
+  // Drop sections with nothing of the user's in them (Start and Finish alone don't count).
+  return sections.filter((sec) => sec.rows.some((r) => !r.accent));
+}
+
 // ---- in-race cues -------------------------------------------------------------
 
 export function sortedCues(plan) {

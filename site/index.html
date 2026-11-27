@@ -7,7 +7,7 @@
 <!-- Unlisted until launch: not on the home page, kept out of search engines. Remove at launch. -->
 <meta name="robots" content="noindex">
 <title>Race Day Plan · Hybrid_by_Ben</title>
-<meta name="description" content="Plan your race morning and the days around it, with phone reminders. Saved on your device only.">
+<meta name="description" content="Plan your race day and the days around it, with phone reminders. Saved on your device only.">
 <style>
   :root {
     --bg:#f6f7f9; --card:#fff; --text:#16181d; --muted:#6a7280; --line:#e3e6eb;
@@ -32,6 +32,9 @@
   input, select, textarea { display:block; width:100%; min-width:0; margin:0; padding:0 10px; height:44px; border:1px solid var(--line);
          border-radius:8px; background:var(--bg); color:var(--text); font:inherit; font-size:16px /* stops iPhone zoom */ }
   textarea { height:auto; min-height:70px; padding:10px; resize:vertical }
+  /* iPhone draws date and time boxes wider and taller than other inputs; match them. */
+  input[type=date], input[type=time] { -webkit-appearance:none; appearance:none; line-height:42px; text-align:left }
+  input[type=date]::-webkit-date-and-time-value, input[type=time]::-webkit-date-and-time-value { text-align:left; margin:0 }
   input[type=checkbox] { display:inline-block; width:20px; height:20px; vertical-align:-4px; margin-right:6px }
   .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) }
   .grid > div { min-width:0 } .full { grid-column:1/-1 }
@@ -76,16 +79,23 @@
   legend { font-size:13px; color:var(--muted); padding:0 4px }
   .inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap } .inline > * { flex:1 1 120px }
   .hint { font-size:12px; color:var(--muted); margin:4px 0 0 }
-  /* Checklist */
-  .cat { border-top:1px solid var(--line); padding:12px 0 4px } .cat:first-of-type { border-top:0; padding-top:0 }
-  .cat h3 { font-size:14px; margin:0 0 6px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; font-size:12px }
-  .pick { display:flex; gap:10px; align-items:flex-start; padding:7px 0 }
-  .pick input { flex:none; margin:2px 0 0 }
-  .pick label { color:var(--text); font-size:15px; margin:0; cursor:pointer }
-  .pick .sum { display:block; font-size:12px; color:var(--muted); margin-top:1px }
-  .pick .sum.unset { color:var(--warn); font-weight:600 }
-  .pick .chg { background:none; border:0; color:var(--accent); font-weight:600; font-size:12px; padding:0 0 0 6px; min-height:0; cursor:pointer }
-  .addown { background:none; border:0; color:var(--accent); font-weight:600; font-size:13px; padding:6px 0; min-height:0; cursor:pointer }
+  /* Plan builder: your items, suggestion chips, write-in */
+  details.cat { border-top:1px solid var(--line) } details.cat:first-of-type { border-top:0 }
+  details.cat > summary { list-style:none; cursor:pointer; padding:12px 26px 12px 0; position:relative; min-height:44px }
+  details.cat > summary::-webkit-details-marker { display:none }
+  details.cat > summary::after { content:"+"; position:absolute; right:4px; top:10px; color:var(--accent); font-weight:700; font-size:18px }
+  details.cat[open] > summary::after { content:"−" }
+  details.cat > summary b { display:block; font-size:15px }
+  details.cat > summary .got { display:block; font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  details.cat > summary .got.unset { color:var(--warn); font-weight:600 }
+  details.cat .body { padding:0 0 12px }
+  .mine { display:flex; align-items:center; gap:6px; padding:4px 0 }
+  .mine .open { flex:1; min-width:0; text-align:left; background:none; border:0; color:var(--text); padding:4px 0; min-height:0; font-weight:600; font-size:15px; cursor:pointer }
+  .mine .open .sum { display:block; font-weight:400; font-size:12px; color:var(--muted) } .mine .open .sum.unset { color:var(--warn); font-weight:600 }
+  .mine .x { flex:none; background:none; border:0; color:var(--muted); font-size:20px; line-height:1; padding:6px 8px; min-height:0; cursor:pointer }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 8px }
+  .chip { min-height:32px; padding:4px 11px; border-radius:999px; background:transparent; color:var(--accent); border:1px solid var(--line); font-weight:600; font-size:13px }
+  .addrow { display:flex; gap:8px } .addrow input { flex:1; height:40px; font-size:16px } .addrow button { min-height:40px; padding:0 14px }
   details.tz summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; padding:6px 0 }
   .carbs { width:100%; border-collapse:collapse; font-size:14px; margin-top:12px }
   .carbs th, .carbs td { text-align:left; vertical-align:top; padding:8px 8px 8px 0; border-top:1px solid var(--line) }
@@ -106,7 +116,7 @@
 <div class="wrap">
   <p class="crumb"><a href="/">← Hybrid_by_Ben</a></p>
   <h1>Race Day Plan</h1>
-  <p class="sub">Plan your race morning to the minute, and the days before and after. Get it as phone reminders, and print a cue card for the race.</p>
+  <p class="sub">Plan your race day to the minute, and the days before and after. Get it as phone reminders, and print a cue card for the race.</p>
 
   <div class="card notice">
     <b>Your plan, your amounts.</b> Only schedule what you've tested in training. The page never suggests doses or products; the only number it offers is a basic carb-loading amount, if you ask for it. Not medical advice.
@@ -141,10 +151,10 @@
     <!-- Race -->
     <div class="card">
       <div class="head"><h2>Race</h2></div>
-      <div class="grid">
+      <div class="grid" style="align-items:end">
         <div class="full"><label for="rName">Race name</label><input id="rName" maxlength="80" placeholder="e.g. HYROX Paris, Men's Pro"></div>
         <div><label for="rDate">Race date</label><input id="rDate" type="date"></div>
-        <div><label for="rStart">Your start time (your wave)</label><input id="rStart" type="time"></div>
+        <div><label for="rStart">Wave start time</label><input id="rStart" type="time"></div>
       </div>
       <details class="tz"><summary id="tzSum">Racing in another time zone?</summary>
         <label for="rTz">Race time zone</label><select id="rTz"></select>
@@ -155,7 +165,7 @@
     <!-- Checklist -->
     <div class="card" id="pickCard">
       <div class="head"><h2>What do you want in your plan?</h2></div>
-      <p class="hint" style="margin:-6px 0 12px">Tick to add. Suggested times are typical; tap Change to set your own. Supplements and caffeine pills have no suggested time: you set it.</p>
+      <p class="hint" style="margin:-6px 0 4px">Open a category, then tap a suggestion or write in your own. Suggested times are typical, and meals follow your start time; tap an item to change it. Supplements and caffeine pills have no suggested time: you set it.</p>
       <div id="picks"></div>
     </div>
 
@@ -177,7 +187,7 @@
 
     <!-- Race morning -->
     <div class="card" id="morningCard">
-      <div class="head"><h2>Your race morning</h2>
+      <div class="head"><h2>Your race day</h2>
         <button type="button" class="plain noprint" data-print="morningCard">Print</button></div>
       <div class="rows" id="morning"></div>
       <div class="grid noprint" style="margin-top:12px">
@@ -412,47 +422,55 @@ function render() {
       <span class="at">${esc(P.cueWhen(c))}</span><span>${esc(c.text)}</span></button>`).join('') : `<p class="empty">Nothing yet.</p>`;
 }
 
-// The checklist: one section per category, a box per catalogue entry, the
-// user's own items under it, and "Add your own".
+// The plan builder: per category, what you've added (tap to change, x to
+// remove), suggestions to tap, and a write-in box.
 function renderPicks(p) {
   const clock = (t) => { const c = P.clockAt(p.race.start, t); return `${P.ampm(c.hhmm)}${c.day < 0 ? ' (day before)' : ''}`; };
   const itemSum = (i) => i.offset === null ? '<span class="sum unset">Set your time</span>'
-    : `<span class="sum">${esc(P.hm(i.offset))} before start · ${esc(clock(i.offset))}${i.amount ? ` · ${esc(i.amount)}` : ''}</span>`;
+    : `<span class="sum">${esc(clock(i.offset))} · ${esc(P.hm(i.offset))} before start${i.amount ? ` · ${esc(i.amount)}` : ''}</span>`;
   const daySum = (l) => l.first === null ? '<span class="sum unset">Set your days</span>'
     : `<span class="sum">${esc(P.relDayRange(l))}${l.time ? ` · ${esc(P.ampm(l.time))}` : ''}${l.amount ? ` · ${esc(l.amount)}` : ''}</span>`;
   const cats = P.CATEGORIES.map(([cid, name]) => {
-    const rows = P.CATALOG.filter((c) => c.cat === cid).map((c) => {
-      const on = P.isTicked(p, c.id);
-      const it = p.items.find((i) => i.cat === c.id), li = p.leadIn.find((l) => l.cat === c.id);
-      let sum = '';
-      if (on && c.carbs) {
-        const g = P.carbGuide(p.nutrition);
-        sum = g ? `<span class="sum">${esc(P.relDayRange(g))} · ${g.g[0]}–${g.g[1]} g a day</span>` : '<span class="sum unset">Enter your weight below</span>';
-      } else if (it) sum = itemSum(it);
-      else if (li) sum = daySum(li);
-      const chg = on && !c.carbs ? `<button type="button" class="chg" data-edit="${esc((it || li).id)}" data-kind="${it ? 'item' : 'day'}">Change</button>` : '';
-      return [`c-${c.id}`, `<input type="checkbox" id="pk-${c.id}" data-pick="${c.id}"${on ? ' checked' : ''}>
-        <label for="pk-${c.id}">${esc(c.label)}${sum}</label>${chg}`];
-    });
-    const own = [...p.items.filter((i) => !i.cat && i.group === cid).map((i) => [i, 'item']), ...p.leadIn.filter((l) => !l.cat && l.group === cid).map((l) => [l, 'day'])]
-      .map(([x, kind]) => [`o-${x.id}`, `<input type="checkbox" checked data-own="${esc(x.id)}" data-kind="${kind}" aria-label="Remove ${esc(x.label)}">
-        <label>${esc(x.label)}${kind === 'item' ? itemSum(x) : daySum(x)}</label><button type="button" class="chg" data-edit="${esc(x.id)}" data-kind="${kind}">Change</button>`]);
-    return [cid, name, [...rows, ...own]];
+    const rows = [];
+    if (cid === 'days' && p.nutrition.show) {
+      const g = P.carbGuide(p.nutrition);
+      rows.push(['carbs', `<button type="button" class="open" data-carbs="1">Carb load${g ? `<span class="sum">${esc(P.relDayRange(g))} · ${g.g[0]}–${g.g[1]} g a day</span>` : '<span class="sum unset">Enter your weight below</span>'}</button>
+        <button type="button" class="x" data-uncarbs="1" aria-label="Remove carb load">×</button>`]);
+    }
+    const mine = [...p.items.filter((i) => i.group === cid).sort((a, b) => (b.offset ?? 1e9) - (a.offset ?? 1e9)).map((i) => [i, 'item']),
+      ...p.leadIn.filter((l) => l.group === cid).sort((a, b) => (a.first ?? -1e9) - (b.first ?? -1e9)).map((l) => [l, 'day'])];
+    for (const [x, kind] of mine) {
+      rows.push([`r-${x.id}`, `<button type="button" class="open" data-edit="${esc(x.id)}" data-kind="${kind}">${esc(x.label)}${kind === 'item' ? itemSum(x) : daySum(x)}</button>
+        <button type="button" class="x" data-remove="${esc(x.id)}" aria-label="Remove ${esc(x.label)}">×</button>`]);
+    }
+    const sugg = P.suggestions(p, cid);
+    const chips = sugg.length ? `<span class="hint" style="margin:0;align-self:center">Add:</span>` + sugg.map((c) => `<button type="button" class="chip" data-pick="${c.id}">+ ${esc(c.label)}</button>`).join('') : '';
+    const names = [...(cid === 'days' && p.nutrition.show ? ['Carb load'] : []), ...mine.map(([x]) => x.label)];
+    const unset = mine.some(([x, kind]) => (kind === 'item' ? x.offset : x.first) === null);
+    const sum = `<b>${esc(name)}</b><span class="got${unset ? ' unset' : ''}">${names.length ? esc(names.join(', ')) + (unset ? ' · set a time' : '') : 'Nothing yet'}</span>`;
+    return [cid, name, rows, chips, sum];
   });
-  // Redraw only the rows that changed, so the row under a finger mid-tap
-  // stays put (e.g. the carb line updating as the weight box loses focus).
+  // Redraw only what changed, so a row under a finger mid-tap stays put and
+  // the write-in boxes keep what's being typed.
   const shape = cats.map(([cid, , rows]) => cid + ':' + rows.map((r) => r[0]).join(',')).join('|');
   if (shape !== drawn.picksShape) {
     drawn.picksShape = shape;
-    $('picks').innerHTML = cats.map(([cid, name, rows]) => `<div class="cat"><h3>${esc(name)}</h3>${rows.map(([k, h]) => `<div class="pick" data-row="${esc(k)}">${h}</div>`).join('')}
-      <button type="button" class="addown" data-add="${cid}">+ Add your own</button></div>`).join('');
-    for (const [, , rows] of cats) for (const [k, h] of rows) drawn['row:' + k] = h;
+    $('picks').innerHTML = cats.map(([cid, name, rows, chips, sum]) => `<details class="cat" data-cat="${cid}"${openCats.has(cid) ? ' open' : ''}>
+      <summary data-sum="${cid}">${sum}</summary><div class="body">
+      ${rows.map(([k, h]) => `<div class="mine" data-row="${esc(k)}">${h}</div>`).join('')}
+      <div class="chips" data-chips="${cid}">${chips}</div>
+      <form class="addrow" data-add="${cid}"><input maxlength="80" placeholder="${cid.endsWith('Supps') ? 'Write in a supplement' : 'Write in your own'}" aria-label="Add to ${esc(name)}"><button type="submit" class="ghost">Add</button></form></div></details>`).join('');
+    for (const [cid, , rows, chips, sum] of cats) { drawn['chips:' + cid] = chips; drawn['sum:' + cid] = sum; for (const [k, h] of rows) drawn['row:' + k] = h; }
     return;
   }
-  for (const [, , rows] of cats) for (const [k, h] of rows) {
-    if (drawn['row:' + k] === h) continue;
-    drawn['row:' + k] = h;
-    document.querySelector(`#picks [data-row="${CSS.escape(k)}"]`).innerHTML = h;
+  for (const [cid, , rows, chips, sum] of cats) {
+    if (drawn['sum:' + cid] !== sum) { drawn['sum:' + cid] = sum; document.querySelector(`#picks [data-sum="${cid}"]`).innerHTML = sum; }
+    for (const [k, h] of rows) {
+      if (drawn['row:' + k] === h) continue;
+      drawn['row:' + k] = h;
+      document.querySelector(`#picks [data-row="${CSS.escape(k)}"]`).innerHTML = h;
+    }
+    if (drawn['chips:' + cid] !== chips) { drawn['chips:' + cid] = chips; document.querySelector(`#picks [data-chips="${cid}"]`).innerHTML = chips; }
   }
 }
 
@@ -473,32 +491,41 @@ function renderCarbs(p) {
 
 function update(fn) { const p = plan(); if (!p) return; fn(p); save(); render(); }
 
-// ---- checklist ----
-$('picks').onchange = (e) => {
-  const cid = e.target.dataset.pick, own = e.target.dataset.own;
-  if (cid) {
-    if (e.target.checked) {
-      let added = null;
-      update((p) => { added = P.tick(p, cid); });
-      const c = P.catalogItem(cid);
-      // No suggested time: ask for one straight away.
-      if (added && added !== 'carbs' && (c.offset === null || c.day === null)) (P.isDayEntry(c) ? openDay : openItem)(added);
-      if (added === 'carbs') $('carbCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } else update((p) => P.untick(p, cid));
-  } else if (own) {
-    const x = (e.target.dataset.kind === 'item' ? plan().items : plan().leadIn).find((y) => y.id === own);
-    if (confirm(`Remove "${x.label}" from your plan?`)) update((p) => {
-      p.items = p.items.filter((y) => y.id !== own);
-      p.leadIn = p.leadIn.filter((y) => y.id !== own);
-      for (const y of p.items) if (y.before?.id === own) y.before = null;
-    });
-    else e.target.checked = true;
-  }
-};
+// ---- plan builder ----
+// Which categories are open, kept across redraws.
+const openCats = new Set();
+$('picks').addEventListener('toggle', (e) => { const c = e.target.dataset?.cat; if (c) e.target.open ? openCats.add(c) : openCats.delete(c); }, true);
 $('picks').onclick = (e) => {
-  const ed = e.target.closest('[data-edit]'), add = e.target.closest('[data-add]');
-  if (ed) (ed.dataset.kind === 'item' ? openItem : openDay)(ed.dataset.edit);
-  if (add) (add.dataset.add === 'days' ? openDay : openItem)(null, add.dataset.add);
+  const t = (sel) => e.target.closest(sel);
+  if (t('[data-pick]')) {
+    const cid = t('[data-pick]').dataset.pick;
+    let added = null;
+    update((p) => { added = P.tick(p, cid); });
+    const c = P.catalogItem(cid);
+    if (added === 'carbs') $('carbCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else if (added && P.suggestedOffset(c, plan().race.start) === null && !P.isDayEntry(c)) openItem(added);   // no suggested time: ask
+  } else if (t('[data-edit]')) {
+    const b = t('[data-edit]');
+    (b.dataset.kind === 'item' ? openItem : openDay)(b.dataset.edit);
+  } else if (t('[data-remove]')) {
+    const id = t('[data-remove]').dataset.remove;
+    const x = plan().items.find((y) => y.id === id) || plan().leadIn.find((y) => y.id === id);
+    if ((x.cat && !x.amount && !x.note) || confirm(`Remove "${x.label}" from your plan?`)) update((p) => {
+      p.items = p.items.filter((y) => y.id !== id);
+      p.leadIn = p.leadIn.filter((y) => y.id !== id);
+      for (const y of p.items) if (y.before?.id === id) y.before = null;
+    });
+  } else if (t('[data-carbs]')) $('carbCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  else if (t('[data-uncarbs]')) update((p) => P.untick(p, 'carbs'));
+};
+// Write-ins: open the editor with the name filled in, to set its time or days.
+$('picks').onsubmit = (e) => {
+  e.preventDefault();
+  const form = e.target.closest('[data-add]'), input = form.querySelector('input'), name = input.value.trim();
+  if (!name) { input.focus(); return; }
+  const group = form.dataset.add;
+  input.value = '';
+  (P.DAY_GROUPS.includes(group) ? openDay : openItem)(null, group, name);
 };
 $('days').addEventListener('click', (e) => { if (e.target.closest('[data-carbs]')) $('carbCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
@@ -570,10 +597,10 @@ $('iReact').onchange = syncActivity;
 $('iOffset').oninput = () => { const o = P.parseOffset($('iOffset').value); if (o !== null) $('iClock').value = P.clockAt(plan().race.start, o).hhmm; };
 $('iClock').oninput = () => { if ($('iClock').value) $('iOffset').value = P.hm(clockToOffset($('iClock').value)); };
 // Opens the item editor. A new item gets its kind from the checklist category.
-function openItem(id, group) {
+function openItem(id, group, label = '') {
   const p = plan();
-  const kind = { food: 'food', caffeine: 'caffeine', supplements: 'supplement', venue: 'activity', sleep: 'other' }[group] || 'food';
-  const i = p.items.find((x) => x.id === id) || { id: null, label: '', kind, offset: 60, amount: '', caffeine: 0, rehearsed: '', note: '', duration: 20, moving: true, before: null, reaction: null };
+  const kind = { food: 'food', caffeine: 'caffeine', raceSupps: 'supplement', venue: 'other', sleep: 'other' }[group] || 'food';
+  const i = p.items.find((x) => x.id === id) || { id: null, label, kind, offset: group === 'raceSupps' ? null : 60, amount: '', caffeine: 0, rehearsed: '', note: '', duration: 20, moving: true, before: null, reaction: null };
   editing = i.id; editingGroup = i.group || group || P.groupOfKind(kind);
   $('itemTitle').textContent = i.id ? 'Change item' : 'Add an item';
   $('itemDel').hidden = !i.id;
@@ -622,8 +649,8 @@ $('itemForm').onsubmit = (e) => {
 
 // ---- day editor ----
 let editingDay = null, editingDayGroup = null;
-function openDay(id, group) {
-  let l = plan().leadIn.find((x) => x.id === id) || { id: null, label: '', amount: '', first: -1, last: -1, time: '', note: '' };
+function openDay(id, group, label = '') {
+  let l = plan().leadIn.find((x) => x.id === id) || { id: null, label, amount: '', first: group === 'dailySupps' ? null : -1, last: -1, time: '', note: '' };
   editingDay = l.id; editingDayGroup = l.group || group || 'days';
   $('dUnsetHint').hidden = l.first !== null;
   if (l.first === null) l = { ...l, first: -3, last: -1 };

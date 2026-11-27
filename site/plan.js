@@ -502,6 +502,30 @@ export function planSections(plan) {
   return sections.filter((sec) => sec.rows.some((r) => !r.accent));
 }
 
+// The plan as plain text (for the clipboard): a heading, then each section.
+export function planText(plan) {
+  const head = [plan.race.name || 'My race', `${dayLabel(plan.race.date)} · start ${ampm(plan.race.start)} · ${plan.race.tz}`];
+  const body = planSections(plan).map((sec) => [sec.title.toUpperCase(),
+    ...sec.rows.map((r) => `${r.when}${r.sub ? ` (${r.sub})` : ''} — ${r.text}${r.detail ? ` · ${r.detail}` : ''}`)].join('\n'));
+  return [head.join('\n'), ...body, 'hybridbyben.com/race-plan'].join('\n\n') + '\n';
+}
+
+// The plan as CSV: one row per item. Starts with a byte-order mark so Excel
+// reads the dashes and dots correctly. Cells that a spreadsheet would treat
+// as a formula (=, +, -, @) get a leading apostrophe.
+export function planCsv(plan) {
+  const cell = (v) => {
+    let t = String(v ?? '');
+    if (/^[=+\-@]/.test(t)) t = "'" + t;
+    return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const rows = [['Section', 'When', 'Time / T-minus', 'Item', 'Details']];
+  for (const sec of planSections(plan)) {
+    for (const r of sec.rows) rows.push([sec.title, r.when, r.sub.replace(/^\+(\S+) after$/, '$1 after finish'), r.text, r.detail]);
+  }
+  return '\ufeff' + rows.map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
+}
+
 // ---- in-race cues -------------------------------------------------------------
 
 export function sortedCues(plan) {

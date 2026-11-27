@@ -14,7 +14,11 @@
  *   leadIn   days around the race: { id, label, amount, first, last, time, note }
  *            first/last are days relative to race day (-3 = 3 days before, 0 = race day, 2 = 2 days after)
  *   cues     in-race reminders: { id, at: "Run 3", when: "after"|"before"|"during", text }
- *   nutrition { weight, unit: "kg"|"lb", finish: minutes|null, show } for the carb guide
+ *   nutrition { weight, unit: "kg"|"lb", show } for the carb-load suggestion
+ *
+ * Post-race items (group "post") are timed `after` minutes after the finish;
+ * the finish is the start plus race.duration (or RACE_MIN), and syncPost()
+ * keeps their `offset` (negative: after the start) in step.
  *
  * Items and day items picked from the checklist carry `cat` (their CATALOG id)
  * and every item has a `group` (its checklist category). An item's `offset`
@@ -245,7 +249,7 @@ export function warnings(plan) {
   }
 
   // Nothing new on race day.
-  const fresh = sortedItems(plan).filter((i) => !['activity', 'other'].includes(i.kind) && !String(i.rehearsed || '').trim());
+  const fresh = sortedItems(plan).filter((i) => !['activity', 'other'].includes(i.kind) && i.group !== 'post' && !String(i.rehearsed || '').trim());
   if (fresh.length) {
     out.push({ level: 'info', ids: fresh.map((i) => i.id),
       text: `Not rehearsed yet: ${fresh.map((i) => i.label).join(', ')}. Only use what you've tested in training, and note when you did.` });
@@ -296,7 +300,7 @@ export function buildIcs(plan, { leadIn = true, now = Date.now() } = {}) {
     L.push(...ev(`${plan.id}-${it.id}`, start, start + len * 60000, `${it.label}${it.amount ? ` · ${it.amount}` : ''}`, desc, false));
   }
   const startUtc = zonedToUtc(plan.race.date, plan.race.start, plan.race.tz);
-  L.push(...ev(`${plan.id}-start`, startUtc, startUtc + 90 * 60000, `${plan.race.name || 'Race'}: start`, cuesText(plan), false));
+  L.push(...ev(`${plan.id}-start`, startUtc, startUtc + raceMinutes(plan) * 60000, `${plan.race.name || 'Race'}: start`, cuesText(plan), false));
 
   if (leadIn) {
     for (const li of dayItems(plan)) {
@@ -328,6 +332,7 @@ export const CATEGORIES = [
   ['dailySupps', 'Daily supplements'],
   ['raceSupps', 'Race-day supplements'],
   ['venue', 'At the venue'],
+  ['post', 'Post race'],
 ];
 // Categories whose write-ins are day items (dates) rather than race-day times.
 export const DAY_GROUPS = ['days', 'dailySupps'];
@@ -365,9 +370,25 @@ export const CATALOG = [
   { id: 'bagdrop', cat: 'venue', label: 'Bag drop', kind: 'other', offset: 45 },
   { id: 'warmup', cat: 'venue', label: 'Warm-up', kind: 'activity', offset: 40, duration: 25, moving: true },
   { id: 'corral', cat: 'venue', label: 'Start pen: keep moving', kind: 'activity', offset: 15, duration: 15, moving: true },
+  { id: 'rehydrate', cat: 'post', label: 'Rehydrate', kind: 'food', after: 0 },
+  { id: 'cooldown', cat: 'post', label: 'Cool-down: easy walk or jog', kind: 'activity', after: 5, duration: 10, moving: true },
+  { id: 'recovery', cat: 'post', label: 'Recovery meal or shake', kind: 'food', after: 30 },
+  { id: 'mobility', cat: 'post', label: 'Stretch / mobility', kind: 'other', after: 45 },
+  { id: 'restday', cat: 'post', label: 'Easy or rest day', day: [1, 1, ''] },
 ];
 // The suggestion's default time for this start (minutes before), or null.
 export const suggestedOffset = (c, start) => (c.at ? c.at(start) : c.offset ?? null);
+
+// ---- post race ----
+export const RACE_MIN = 90;   // assumed race time when none is entered
+export const raceMinutes = (plan) => plan.race.duration || RACE_MIN;
+// Finish as minutes before the start (negative: after it).
+export const finishOffset = (plan) => -raceMinutes(plan);
+// Post-race items: offset = finish + `after` minutes (null while unset).
+export function syncPost(plan) {
+  for (const i of plan.items) if (i.group === 'post') i.offset = i.after === null || i.after === undefined ? null : finishOffset(plan) - i.after;
+  return plan;
+}
 // Suggestions still to offer: not added yet, and fitting the start time.
 export const suggestions = (plan, cid) => CATALOG.filter((c) => c.cat === cid && !isTicked(plan, c.id) && (!c.show || c.show(plan.race.start)));
 export const catalogItem = (id) => CATALOG.find((c) => c.id === id);
@@ -393,8 +414,10 @@ export function tick(plan, cid) {
   } else {
     plan.items.push({ id, cat: c.id, group: c.cat, label: c.label, kind: c.kind, offset: suggestedOffset(c, plan.race.start), amount: '', caffeine: 0,
       rehearsed: '', note: c.note || '', before: null, reaction: null,
-      ...(c.kind === 'activity' ? { duration: c.duration, moving: c.moving } : {}) });
+      ...(c.kind === 'activity' ? { duration: c.duration, moving: c.moving } : {}),
+      ...('after' in c ? { after: c.after } : {}) });
   }
+  syncPost(plan);
   return id;
 }
 
@@ -456,7 +479,7 @@ export const cuesText = (plan) => sortedCues(plan).map((c) => `${cueWhen(c)}: ${
 export function blankPlan(today, tz) {
   return {
     v: 1, id: uid(),
-    race: { name: '', date: addDays(today, 28), start: '09:00', tz },
+    race: { name: '', date: addDays(today, 28), start: '09:00', tz, duration: null },
     settings: { caffeineLimit: null, alertMin: 0 },
     items: [], leadIn: [], cues: [],
     nutrition: { weight: null, unit: 'kg', finish: null, show: false },
@@ -472,14 +495,15 @@ export function normalisePlan(raw) {
   const plan = {
     v: 1, id: s(raw.id, 20) || uid(),
     race: { name: s(raw.race.name, 80), date, start: /^\d\d:\d\d$/.test(raw.race.start) ? raw.race.start : '09:00',
-      tz: validZone(raw.race.tz) ? raw.race.tz : 'UTC' },
+      tz: validZone(raw.race.tz) ? raw.race.tz : 'UTC', duration: Number(raw.race.duration) > 0 ? num(raw.race.duration, 10, 600) : null },
     settings: { caffeineLimit: raw.settings?.caffeineLimit > 0 ? num(raw.settings.caffeineLimit, 1, 5000) : null,
       alertMin: num(raw.settings?.alertMin, 0, 60) },
     items: raw.items.slice(0, 60).map((i) => ({
       id: s(i.id, 20) || uid(), label: s(i.label, 80) || 'Item', kind: KINDS[i.kind] ? i.kind : 'other',
       cat: catalogItem(i.cat) ? i.cat : '', group: CATEGORIES.some((c) => c[0] === i.group) ? i.group : groupOfKind(i.kind),  // old "supplements" -> race-day
-      offset: i.offset === null || i.offset === '' || i.offset === undefined ? null : num(i.offset, 0, 24 * 60), amount: s(i.amount), caffeine: num(i.caffeine, 0, 2000), rehearsed: s(i.rehearsed, 300), note: s(i.note, 500),
+      offset: i.offset === null || i.offset === '' || i.offset === undefined ? null : num(i.offset, -24 * 60, 24 * 60), amount: s(i.amount), caffeine: num(i.caffeine, 0, 2000), rehearsed: s(i.rehearsed, 300), note: s(i.note, 500),
       ...(i.kind === 'activity' ? { duration: num(i.duration, 0, 600, 15), moving: !!i.moving } : {}),
+      ...(i.group === 'post' ? { after: i.after === null || i.after === undefined || i.after === '' ? null : num(i.after, 0, 24 * 60) } : {}),
       before: i.before && i.before.id ? { id: s(i.before.id, 20), min: num(i.before.min, 0, 24 * 60) } : null,
       reaction: i.reaction ? { from: num(i.reaction.from, 0, 24 * 60), to: num(i.reaction.to, 0, 24 * 60), moving: i.reaction.moving !== false } : null,
     })),
@@ -495,7 +519,6 @@ export function normalisePlan(raw) {
     nutrition: {
       weight: Number(raw.nutrition?.weight) > 0 ? Math.min(600, Math.round(Number(raw.nutrition.weight) * 10) / 10) : null,
       unit: raw.nutrition?.unit === 'lb' ? 'lb' : 'kg',
-      finish: Number(raw.nutrition?.finish) > 0 ? num(raw.nutrition.finish, 1, 24 * 60) : null,
       show: !!raw.nutrition?.show,
     },
   };
@@ -523,5 +546,5 @@ export function normalisePlan(raw) {
   // Drop "before" rules that point at items that no longer exist.
   const ids = new Set(plan.items.map((i) => i.id));
   for (const i of plan.items) if (i.before && !ids.has(i.before.id)) i.before = null;
-  return plan;
+  return syncPost(plan);
 }

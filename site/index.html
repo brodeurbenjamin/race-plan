@@ -49,11 +49,11 @@
   .count { font-size:14px; margin:12px 0 0 } .count b { color:var(--accent) }
   /* Timeline rows */
   .rows { display:grid; gap:0 }
-  .row { display:grid; grid-template-columns:76px 1fr; gap:10px; width:100%; text-align:left; background:none; color:inherit; border:0;
+  .row { display:grid; grid-template-columns:88px 1fr; gap:10px; width:100%; text-align:left; background:none; color:inherit; border:0;
          border-top:1px solid var(--line); border-radius:0; padding:10px 0; font-weight:400; min-height:0 }
   .row:first-child { border-top:0 }
   .row:hover .what b { color:var(--accent) }
-  .when { font-variant-numeric:tabular-nums } .when b { display:block; font-size:16px } .when span { color:var(--muted); font-size:12px }
+  .when { font-variant-numeric:tabular-nums } .when b { display:block; font-size:16px } .when b.t { white-space:nowrap } .when span { color:var(--muted); font-size:12px }
   .what { min-width:0 } .what b { font-weight:600 } .what .amt { color:var(--muted) } .what .meta { display:block; font-size:12px; color:var(--muted); margin-top:2px } .tags { display:block }
   .tag { display:inline-block; font-size:11px; font-weight:600; border-radius:999px; padding:1px 8px; margin:3px 4px 0 0; border:1px solid var(--line); color:var(--muted) }
   .tag.move { color:var(--move); background:var(--move-bg); border-color:transparent }
@@ -61,7 +61,7 @@
   .tag.new { color:var(--warn); background:var(--warn-bg); border-color:transparent }
   .tag.ok { color:var(--good); background:var(--good-bg); border-color:transparent }
   .tag.now { color:#fff; background:var(--accent); border-color:transparent }
-  .row.start { grid-template-columns:76px 1fr; }
+  .row.start { grid-template-columns:88px 1fr; }
   .row.start .what b { color:var(--accent) }
   .warns { margin:0; padding:0; list-style:none; display:grid; gap:8px }
   .warns li { background:var(--warn-bg); border-radius:8px; padding:8px 10px; font-size:14px }
@@ -155,6 +155,8 @@
         <div class="full"><label for="rName">Race name</label><input id="rName" maxlength="80" placeholder="e.g. HYROX Paris, Men's Pro"></div>
         <div><label for="rDate">Race date</label><input id="rDate" type="date"></div>
         <div><label for="rStart">Wave start time</label><input id="rStart" type="time"></div>
+        <div class="full"><label for="rDur">Expected race time (h:mm, optional)</label><input id="rDur" inputmode="text" placeholder="1:30" autocomplete="off">
+          <p class="hint">Times your post-race items from your finish. Uses 1:30 if empty.</p></div>
       </div>
       <details class="tz"><summary id="tzSum">Racing in another time zone?</summary>
         <label for="rTz">Race time zone</label><select id="rTz"></select>
@@ -185,9 +187,16 @@
       <ul class="warns" id="warns"></ul>
     </div>
 
-    <!-- Race morning -->
+    <!-- Day before -->
+    <div class="card" id="daysCard">
+      <div class="head"><h2>Day before</h2>
+        <button type="button" class="plain noprint" data-print="daysCard">Print</button></div>
+      <div class="rows" id="days"></div>
+    </div>
+
+    <!-- Morning of -->
     <div class="card" id="morningCard">
-      <div class="head"><h2>Your race day</h2>
+      <div class="head"><h2>Morning of</h2>
         <button type="button" class="plain noprint" data-print="morningCard">Print</button></div>
       <div class="rows" id="morning"></div>
       <div class="grid noprint" style="margin-top:12px">
@@ -196,12 +205,11 @@
       <p class="hint noprint">Tap an item to change it. The caffeine total adds up whatever you enter; the limit is yours to set.</p>
     </div>
 
-    <!-- Days around the race -->
-    <div class="card" id="daysCard">
-      <div class="head"><h2>Your days before and after</h2>
-        <button type="button" class="plain noprint" data-print="daysCard">Print</button></div>
-      <div class="rows" id="days"></div>
-      <p class="hint noprint">Tap an item to change it.</p>
+    <!-- Post race -->
+    <div class="card" id="postCard">
+      <div class="head"><h2>Post race</h2>
+        <button type="button" class="plain noprint" data-print="postCard">Print</button></div>
+      <div class="rows" id="post"></div>
     </div>
 
     <!-- In race -->
@@ -243,7 +251,7 @@
   <div class="grid">
     <div class="full"><label for="iLabel">What</label><input id="iLabel" maxlength="80" required placeholder="e.g. Breakfast"></div>
     <div><label for="iKind">Type</label><select id="iKind"></select></div>
-    <div><label for="iOffset">Time before start (h:mm)</label><input id="iOffset" inputmode="text" placeholder="1:30" autocomplete="off"></div>
+    <div><label for="iOffset" id="iOffsetLbl">Time before start (h:mm)</label><input id="iOffset" inputmode="text" placeholder="1:30" autocomplete="off"></div>
     <div><label for="iClock">or at (race time)</label><input id="iClock" type="time"></div>
     <div class="full act"><div class="inline">
       <div><label for="iDur">Lasts (min)</label><input id="iDur" type="number" inputmode="numeric" min="0" max="600"></div>
@@ -253,7 +261,7 @@
     <div class="notact"><label for="iCaf">Caffeine in it, mg (optional)</label><input id="iCaf" type="number" inputmode="numeric" min="0" max="2000"></div>
     <div class="full notact"><label for="iReh">Rehearsed (when, and how it went)</label><input id="iReh" maxlength="300" placeholder="e.g. 4 Oct 5K, no issues"></div>
   </div>
-  <fieldset class="notact"><legend>Timing rules (optional)</legend>
+  <fieldset class="notact notpost"><legend>Timing rules (optional)</legend>
     <div class="inline">
       <div><label for="iBeforeMin">At least (min)</label><input id="iBeforeMin" type="number" inputmode="numeric" min="0"></div>
       <div><label for="iBeforeId">before</label><select id="iBeforeId"></select></div>
@@ -352,6 +360,7 @@ function render() {
   if (!p) return;
 
   $('rName').value = p.race.name; $('rDate').value = p.race.date; $('rStart').value = p.race.start;
+  if (document.activeElement !== $('rDur')) $('rDur').value = p.race.duration ? P.hm(p.race.duration) : '';
   fillZones(p.race.tz);
   $('tzSum').textContent = p.race.tz === deviceTz ? 'Racing in another time zone?' : `Race time zone: ${p.race.tz}`;
   renderPicks(p);
@@ -369,51 +378,68 @@ function render() {
   H.warns = w.map((x) => `<li class="${x.level}"><b>${x.level === 'warn' ? 'Check:' : 'Note:'}</b> ${esc(x.text)}</li>`).join('');
   const flagged = new Set(w.filter((x) => x.level === 'warn').flatMap((x) => x.ids));
 
-  // Morning
   const run = P.caffeineRunning(p);
   const anyCaf = p.items.some((i) => i.caffeine > 0);
-  const clock = (t) => { const c = P.clockAt(p.race.start, t); return `${P.ampm(c.hhmm)}${c.day < 0 ? ' (day before)' : ''}`; };
-  const rows = P.sortedItems(p).map((i) => {
+  const clock = (t) => { const c = P.clockAt(p.race.start, t); return `${P.ampm(c.hhmm)}${c.day < 0 ? ' (day before)' : c.day > 0 ? ' (next day)' : ''}`; };
+  const today = localToday();
+  const itemRow = (i) => {
     const tags = [];
     if (i.kind === 'activity') {
       tags.push(`<span class="tag ${i.moving ? 'move' : 'still'}">${i.moving ? 'Moving' : 'Still'}${i.duration ? ` · ${i.duration} min, to ${esc(clock(i.offset - i.duration))}` : ''}</span>`);
     } else {
       if (i.caffeine > 0) tags.push(`<span class="tag">+${i.caffeine} mg caffeine · ${run.get(i.id)} mg so far</span>`);
-      if (i.kind !== 'other') tags.push(String(i.rehearsed).trim() ? `<span class="tag ok">Rehearsed</span>` : `<span class="tag new">Not rehearsed</span>`);
+      if (i.kind !== 'other' && i.group !== 'post') tags.push(String(i.rehearsed).trim() ? `<span class="tag ok">Rehearsed</span>` : `<span class="tag new">Not rehearsed</span>`);
     }
     if (flagged.has(i.id)) tags.push(`<span class="tag new">Check timing</span>`);
-
     const react = i.reaction && i.reaction.to > i.reaction.from
       ? `<span class="meta">Reaction window ${esc(P.tminus(i.offset - i.reaction.from))} to ${esc(P.tminus(i.offset - i.reaction.to))} (${esc(clock(i.offset - i.reaction.from))}–${esc(clock(i.offset - i.reaction.to))})${i.reaction.moving ? ': be moving' : ''}</span>` : '';
     const rule = i.before && p.items.find((o) => o.id === i.before.id)
       ? `<span class="meta">At least ${i.before.min} min before ${esc(p.items.find((o) => o.id === i.before.id).label)}</span>` : '';
+    const rel = i.group === 'post' ? `+${P.hm(i.after)} after` : P.tminus(i.offset);
     return `<button type="button" class="row" data-item="${esc(i.id)}">
-      <span class="when"><b>${esc(clock(i.offset))}</b><span>${esc(P.tminus(i.offset))}</span></span>
+      <span class="when"><b class="t">${esc(clock(i.offset))}</b><span>${esc(rel)}</span></span>
       <span class="what"><b>${esc(i.label)}</b>${i.amount ? ` <span class="amt">· ${esc(i.amount)}</span>` : ''}
         ${i.note ? `<span class="meta">${esc(i.note)}</span>` : ''}${rule}${react}<span class="tags">${tags.join('')}</span></span></button>`;
-  });
-  rows.push(`<div class="row start"><span class="when"><b>${esc(P.ampm(p.race.start))}</b><span>T-0:00</span></span>
-    <span class="what"><b>Start</b>${anyCaf ? ` <span class="amt">· ${run.size ? Math.max(...run.values()) : 0} mg caffeine in total</span>` : ''}</span></div>`);
-  const unsetRows = p.items.filter((i) => i.offset === null).map((i) => `<button type="button" class="row" data-item="${esc(i.id)}">
+  };
+  const unsetItem = (i) => `<button type="button" class="row" data-item="${esc(i.id)}">
       <span class="when"><b>—</b><span>no time</span></span>
-      <span class="what"><b>${esc(i.label)}</b>${i.amount ? ` <span class="amt">· ${esc(i.amount)}</span>` : ''}<span class="tags"><span class="tag new">Set your time</span></span></span></button>`);
-  H.morning = p.items.length ? unsetRows.join('') + rows.join('') : `<p class="empty">Nothing yet. Tick what you want above.</p>`;
-
-  // Days around the race
-  const today = localToday();
-  const days = P.dayItems(p).sort((a, b) => a.first - b.first || a.last - b.last);
-  const unsetDays = p.leadIn.filter((l) => l.first === null).map((l) => `<button type="button" class="row" data-day="${esc(l.id)}">
+      <span class="what"><b>${esc(i.label)}</b>${i.amount ? ` <span class="amt">· ${esc(i.amount)}</span>` : ''}<span class="tags"><span class="tag new">Set your time</span></span></span></button>`;
+  const unsetDay = (l) => `<button type="button" class="row" data-day="${esc(l.id)}">
       <span class="when"><b>—</b><span>no days</span></span>
-      <span class="what"><b>${esc(l.label)}</b>${l.amount ? ` <span class="amt">· ${esc(l.amount)}</span>` : ''}<span class="tags"><span class="tag new">Set your days</span></span></span></button>`).join('');
-  H.days = (days.length || unsetDays) ? unsetDays + days.map((l) => {
-    const s = P.leadInStatus(p.race, l, today);
-    const range = s.from === s.to ? P.dayLabel(s.from) : `${P.dayLabel(s.from)} – ${P.dayLabel(s.to)}`;
+      <span class="what"><b>${esc(l.label)}</b>${l.amount ? ` <span class="amt">· ${esc(l.amount)}</span>` : ''}<span class="tags"><span class="tag new">Set your days</span></span></span></button>`;
+  const dayRow = (l, when = null, small = null) => {
+    const st = P.leadInStatus(p.race, l, today);
+    const range = st.from === st.to ? P.dayLabel(st.from) : `${P.dayLabel(st.from)} – ${P.dayLabel(st.to)}`;
+    const big = when || (l.first === l.last ? (l.first === 0 ? 'All day' : (l.first < 0 ? (l.first === -1 ? 'Day before' : `${-l.first}d before`) : (l.first === 1 ? 'Next day' : `${l.first}d after`))) : `${l.last - l.first + 1} days`);
     return `<button type="button" class="row" ${l.derived ? 'data-carbs="1"' : `data-day="${esc(l.id)}"`}>
-      <span class="when"><b>${esc(l.first === l.last ? (l.first === 0 ? 'Race day' : (l.first < 0 ? `${-l.first}d before` : `${l.first}d after`)) : `${l.last - l.first + 1} days`)}</b><span>${l.time ? esc(P.ampm(l.time)) : ''}</span></span>
+      <span class="when"><b>${esc(big)}</b><span>${esc(small ?? (l.time ? P.ampm(l.time) : ''))}</span></span>
       <span class="what"><b>${esc(l.label)}</b>${l.amount ? ` <span class="amt">· ${esc(l.amount)}</span>` : ''}
         <span class="meta">${esc(range)} · ${esc(P.relDayRange(l))}</span>${l.note ? `<span class="meta">${esc(l.note)}</span>` : ''}
-        <span class="tags"><span class="tag ${s.state === 'now' ? 'now' : s.state === 'done' ? '' : 'move'}">${esc(s.text)}</span></span></span></button>`;
-  }).join('') : `<p class="empty">Nothing yet.</p>`;
+        <span class="tags"><span class="tag ${st.state === 'now' ? 'now' : st.state === 'done' ? '' : 'move'}">${esc(st.text)}</span></span></span></button>`;
+  };
+  const days = P.dayItems(p).sort((a, b) => a.first - b.first || a.last - b.last);
+
+  // Day before (and anything earlier)
+  const before = [...p.leadIn.filter((l) => l.first === null && l.group !== 'post').map(unsetDay), ...days.filter((l) => l.first < 0).map((l) => dayRow(l))];
+  H.days = before.length ? before.join('') : `<p class="empty">Nothing yet. Add things in Days before, Sleep or Daily supplements above.</p>`;
+
+  // Morning of: all-day items, then the timeline to the start
+  const pre = P.sortedItems(p).filter((i) => i.group !== 'post');
+  const morning = [...p.items.filter((i) => i.offset === null && i.group !== 'post').map(unsetItem), ...days.filter((l) => l.first === 0).map((l) => dayRow(l)), ...pre.map(itemRow)];
+  morning.push(`<div class="row start"><span class="when"><b class="t">${esc(P.ampm(p.race.start))}</b><span>T-0:00</span></span>
+    <span class="what"><b>Start</b>${anyCaf ? ` <span class="amt">· ${run.size ? Math.max(...run.values()) : 0} mg caffeine in total</span>` : ''}</span></div>`);
+  H.morning = morning.length > 1 ? morning.join('') : `<p class="empty">Nothing yet. Add your meals, warm-up and anything you take above.</p>`;
+
+  // Post race: the finish, then items after it, then the days after
+  const fin = P.finishOffset(p);
+  const post = [`<div class="row start"><span class="when"><b class="t">${esc(clock(fin))}</b><span>about</span></span>
+      <span class="what"><b>Finish</b> <span class="amt">· ${esc(P.hm(P.raceMinutes(p)))} race${p.race.duration ? '' : ' (set your expected race time above)'}</span></span></div>`,
+    ...p.items.filter((i) => i.group === 'post' && i.offset === null).map(unsetItem),
+    ...p.leadIn.filter((l) => l.first === null && l.group === 'post').map(unsetDay),
+    ...P.sortedItems(p).filter((i) => i.group === 'post').map(itemRow),
+    ...days.filter((l) => l.first > 0).map((l) => dayRow(l)),
+    ...days.filter((l) => l.first <= 0 && l.last > 0).map((l) => dayRow(l, 'Ongoing', `to ${l.last}d after`))];
+  H.post = post.length > 1 ? post.join('') : post[0] + `<p class="empty" style="margin-top:8px">Nothing yet. Add a cool-down, recovery meal or rest day in Post race above.</p>`;
 
   // Cues
   $('cuesTitle').textContent = p.race.name || 'Race';
@@ -427,7 +453,7 @@ function render() {
 function renderPicks(p) {
   const clock = (t) => { const c = P.clockAt(p.race.start, t); return `${P.ampm(c.hhmm)}${c.day < 0 ? ' (day before)' : ''}`; };
   const itemSum = (i) => i.offset === null ? '<span class="sum unset">Set your time</span>'
-    : `<span class="sum">${esc(clock(i.offset))} · ${esc(P.hm(i.offset))} before start${i.amount ? ` · ${esc(i.amount)}` : ''}</span>`;
+    : `<span class="sum">${esc(clock(i.offset))} · ${esc(i.group === 'post' ? `${P.hm(i.after)} after finish` : `${P.hm(i.offset)} before start`)}${i.amount ? ` · ${esc(i.amount)}` : ''}</span>`;
   const daySum = (l) => l.first === null ? '<span class="sum unset">Set your days</span>'
     : `<span class="sum">${esc(P.relDayRange(l))}${l.time ? ` · ${esc(P.ampm(l.time))}` : ''}${l.amount ? ` · ${esc(l.amount)}` : ''}</span>`;
   const cats = P.CATEGORIES.map(([cid, name]) => {
@@ -489,7 +515,7 @@ function renderCarbs(p) {
   $('carbSource').textContent = "A basic, common carb-loading suggestion for healthy adult athletes, not personal advice. Try it before a hard training session first, and talk to a dietitian or doctor if you have a medical condition or special diet.";
 }
 
-function update(fn) { const p = plan(); if (!p) return; fn(p); save(); render(); }
+function update(fn) { const p = plan(); if (!p) return; fn(p); P.syncPost(p); save(); render(); }
 
 // ---- plan builder ----
 // Which categories are open, kept across redraws.
@@ -503,7 +529,7 @@ $('picks').onclick = (e) => {
     update((p) => { added = P.tick(p, cid); });
     const c = P.catalogItem(cid);
     if (added === 'carbs') $('carbCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    else if (added && P.suggestedOffset(c, plan().race.start) === null && !P.isDayEntry(c)) openItem(added);   // no suggested time: ask
+    else if (added && P.suggestedOffset(c, plan().race.start) === null && !P.isDayEntry(c) && !('after' in c)) openItem(added);   // no suggested time: ask
   } else if (t('[data-edit]')) {
     const b = t('[data-edit]');
     (b.dataset.kind === 'item' ? openItem : openDay)(b.dataset.edit);
@@ -576,6 +602,7 @@ $('rName').onchange = () => update((p) => { p.race.name = $('rName').value.trim(
 $('rDate').onchange = () => { if ($('rDate').value) update((p) => { p.race.date = $('rDate').value; }); };
 $('rStart').onchange = () => { if ($('rStart').value) update((p) => { p.race.start = $('rStart').value.slice(0, 5); }); };
 $('rTz').onchange = () => update((p) => { p.race.tz = $('rTz').value; });
+$('rDur').onchange = () => update((p) => { const v = P.parseOffset($('rDur').value); p.race.duration = v >= 10 && v <= 600 ? v : null; });
 $('cafLimit').onchange = () => update((p) => { const v = Math.round(+$('cafLimit').value); p.settings.caffeineLimit = v > 0 ? v : null; });
 $('alertMin').onchange = () => update((p) => { p.settings.alertMin = +$('alertMin').value; });
 
@@ -592,20 +619,31 @@ function clockToOffset(hhmm) {
   const [a, b] = hhmm.split(':').map(Number);
   return (((h * 60 + m) - (a * 60 + b)) % 1440 + 1440) % 1440;
 }
+// Post-race items are timed from the finish instead of before the start.
+const isPost = () => editingGroup === 'post';
+const fieldToOffset = (v) => (isPost() ? P.finishOffset(plan()) - v : v);
+function clockToField(hhmm) {
+  if (!isPost()) return clockToOffset(hhmm);
+  const [h, m] = plan().race.start.split(':').map(Number), [a, b] = hhmm.split(':').map(Number);
+  return ((a * 60 + b) - (h * 60 + m + P.raceMinutes(plan())) + 2880) % 1440;
+}
 $('iKind').onchange = syncActivity;
 $('iReact').onchange = syncActivity;
-$('iOffset').oninput = () => { const o = P.parseOffset($('iOffset').value); if (o !== null) $('iClock').value = P.clockAt(plan().race.start, o).hhmm; };
-$('iClock').oninput = () => { if ($('iClock').value) $('iOffset').value = P.hm(clockToOffset($('iClock').value)); };
+$('iOffset').oninput = () => { const o = P.parseOffset($('iOffset').value); if (o !== null) $('iClock').value = P.clockAt(plan().race.start, fieldToOffset(o)).hhmm; };
+$('iClock').oninput = () => { if ($('iClock').value) $('iOffset').value = P.hm(clockToField($('iClock').value)); };
 // Opens the item editor. A new item gets its kind from the checklist category.
 function openItem(id, group, label = '') {
   const p = plan();
   const kind = { food: 'food', caffeine: 'caffeine', raceSupps: 'supplement', venue: 'other', sleep: 'other' }[group] || 'food';
-  const i = p.items.find((x) => x.id === id) || { id: null, label, kind, offset: group === 'raceSupps' ? null : 60, amount: '', caffeine: 0, rehearsed: '', note: '', duration: 20, moving: true, before: null, reaction: null };
+  const i = p.items.find((x) => x.id === id) || { id: null, label, kind, offset: group === 'raceSupps' ? null : 60, after: 30, amount: '', caffeine: 0, rehearsed: '', note: '', duration: 20, moving: true, before: null, reaction: null };
   editing = i.id; editingGroup = i.group || group || P.groupOfKind(kind);
+  $('iOffsetLbl').textContent = isPost() ? 'After you finish (h:mm)' : 'Time before start (h:mm)';
+  document.querySelectorAll('#itemForm .notpost').forEach((e) => { e.style.display = isPost() ? 'none' : ''; });
+  const field = isPost() ? i.after : i.offset;
   $('itemTitle').textContent = i.id ? 'Change item' : 'Add an item';
   $('itemDel').hidden = !i.id;
-  $('iLabel').value = i.label; $('iKind').value = i.kind; $('iOffset').value = i.offset === null ? '' : P.hm(i.offset);
-  $('iClock').value = i.offset === null ? '' : P.clockAt(p.race.start, i.offset).hhmm;
+  $('iLabel').value = i.label; $('iKind').value = i.kind; $('iOffset').value = field === null || field === undefined ? '' : P.hm(field);
+  $('iClock').value = field === null || field === undefined ? '' : P.clockAt(p.race.start, fieldToOffset(field)).hhmm;
   $('iDur').value = i.duration ?? 20; $('iMoving').value = i.moving === false ? '0' : '1';
   $('iAmount').value = i.amount; $('iCaf').value = i.caffeine || ''; $('iReh').value = i.rehearsed; $('iNote').value = i.note;
   $('iBeforeId').innerHTML = '<option value="">(no rule)</option>' + P.sortedItems(p).filter((x) => x.id !== i.id && x.kind !== 'activity')
@@ -616,7 +654,12 @@ function openItem(id, group, label = '') {
   syncActivity();
   $('itemDlg').showModal();
 }
-$('morning').onclick = (e) => { const r = e.target.closest('[data-item]'); if (r) openItem(r.dataset.item); };
+$('morning').onclick = $('post').onclick = (e) => {
+  const r = e.target.closest('[data-item]'), d = e.target.closest('[data-day]');
+  if (r) openItem(r.dataset.item);
+  else if (d) openDay(d.dataset.day);
+  else if (e.target.closest('[data-carbs]')) $('carbCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 $('itemForm').onsubmit = (e) => {
   const action = e.submitter?.value;
   if (action === 'delete') {
@@ -631,13 +674,14 @@ $('itemForm').onsubmit = (e) => {
   const raw = $('iOffset').value.trim();
   const offset = raw ? P.parseOffset(raw) : null;
   const err = !$('iLabel').value.trim() ? 'Give it a name.'
-    : raw && (offset === null || offset > 1440) ? 'Time before start: use h:mm, like 1:30 (or minutes, like 90).'
+    : raw && (offset === null || offset > 1440) ? `${isPost() ? 'After you finish' : 'Time before start'}: use h:mm, like 1:30 (or minutes, like 90).`
     : $('iReact').checked && !(+$('iTo').value > +$('iFrom').value) ? 'Reaction window: the "to" minutes must be more than "from".' : '';
   if (err) { e.preventDefault(); $('itemErr').textContent = err; return; }
   const act = $('iKind').value === 'activity';
   const prev = plan().items.find((x) => x.id === editing);
   const item = {
-    id: editing || P.uid(), cat: prev?.cat || '', group: editingGroup, label: $('iLabel').value.trim().slice(0, 80), kind: $('iKind').value, offset,
+    id: editing || P.uid(), cat: prev?.cat || '', group: editingGroup, label: $('iLabel').value.trim().slice(0, 80), kind: $('iKind').value,
+    offset: isPost() ? null : offset, ...(isPost() ? { after: offset } : {}),
     amount: act ? '' : $('iAmount').value.trim(), caffeine: act ? 0 : Math.max(0, Math.round(+$('iCaf').value || 0)),
     rehearsed: act ? '' : $('iReh').value.trim(), note: $('iNote').value.trim(),
     ...(act ? { duration: Math.max(0, Math.round(+$('iDur').value || 0)), moving: $('iMoving').value === '1' } : {}),

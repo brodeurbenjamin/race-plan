@@ -1,8 +1,8 @@
 name: Race Day Plan page
-# Not launched yet: publishes the "coming soon" page, and only when started by
-# hand. To launch, change the path below back to `site` (and the trigger back
-# to pushes on site/**).
 on:
+  push:
+    branches: [main]
+    paths: ['site/**']
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: coming-soon
+          path: site
   deploy:
     needs: build
     runs-on: ubuntu-latest

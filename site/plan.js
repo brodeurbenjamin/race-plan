@@ -20,10 +20,9 @@
  * and every item has a `group` (its checklist category). An item's `offset`
  * (or a day item's `first`/`last`) can be null: picked, but no time set yet.
  *
- * Amounts are the user's own text. The only numbers the page offers are the
- * published carbohydrate guideline ranges (carbGuide), scaled by body weight
- * and cited; never doses for caffeine or supplements, which get no suggested
- * time either.
+ * Amounts are the user's own text. The only number the page offers is a basic
+ * carb-loading amount scaled by body weight (carbGuide); never doses for
+ * caffeine or supplements, which get no suggested time either.
  */
 
 export const KINDS = {
@@ -341,7 +340,7 @@ export const CATALOG = [
   { id: 'dinner', cat: 'days', label: 'Carb-focused dinner', day: [-1, -1, '18:30'] },
   { id: 'hydrate', cat: 'days', label: 'Drink regularly through the day', day: [-1, -1, ''] },
   { id: 'pack', cat: 'days', label: 'Pack your bag and lay out kit', day: [-1, -1, '20:00'] },
-  { id: 'carbs', cat: 'days', label: 'Daily carb targets from your weight', carbs: true },
+  { id: 'carbs', cat: 'days', label: 'Carb load (amount from your weight)', carbs: true },
   { id: 'lightsout', cat: 'sleep', label: 'Lights out', day: [-1, -1, '22:00'] },
   { id: 'wake', cat: 'sleep', label: 'Wake-up alarm', kind: 'other', offset: 210 },
   { id: 'breakfast', cat: 'food', label: 'Breakfast', kind: 'food', offset: 180 },
@@ -404,36 +403,22 @@ export function untick(plan, cid) {
 // Group for an item the user added themselves.
 export const groupOfKind = (kind) => ({ food: 'food', gel: 'food', caffeine: 'caffeine', supplement: 'supplements' })[kind] || 'venue';
 
-// ---- carbohydrate guide --------------------------------------------------------
+// ---- carb loading -------------------------------------------------------------
 
-export const CARB_SOURCE = 'American College of Sports Medicine, Academy of Nutrition and Dietetics and Dietitians of Canada, "Nutrition and Athletic Performance" (joint position statement, 2016)';
 export const LB_PER_KG = 2.20462;
+// A basic, common carb-loading suggestion: about 8-10 g of carbohydrate per kg
+// of body weight a day, on the 2 days before the race. General guidance, not
+// personal advice; the page says so.
+export const CARB_PER_KG = [8, 10];
+export const CARB_DAYS = [-2, -1];
 
-/**
- * Published carbohydrate guideline ranges for this athlete (null without a
- * usable weight). Event length picks the row: under 90 min is "fuelling up"
- * (7-12 g/kg in the 24 h before); over 90 min is carb loading (10-12 g/kg a
- * day for 36-48 h). Pre-event: 1-4 g/kg, 1-4 h before. During: under 45 min
- * not needed; 45-75 min small amounts or a mouth rinse; 1-2.5 h 30-60 g/h;
- * longer, up to 90 g/h. Grams are rounded to 5.
- */
+// { kg, g: [low, high] grams a day, first, last } or null without a usable weight.
 export function carbGuide(n) {
   const w = Number(n?.weight);
   const kg = n?.unit === 'lb' ? w / LB_PER_KG : w;
   if (!(kg >= 30 && kg <= 250)) return null;
-  const g = (lo, hi) => [Math.round((lo * kg) / 5) * 5, Math.round((hi * kg) / 5) * 5];
-  const finish = Number(n.finish) > 0 ? Number(n.finish) : null;
-  const load = finish !== null && finish > 90;
-  const days = load
-    ? { first: -2, last: -1, perKg: [10, 12], g: g(10, 12), name: 'Carb loading (events over 90 min): 10–12 g/kg a day for the 36–48 h before' }
-    : { first: -1, last: -1, perKg: [7, 12], g: g(7, 12), name: 'Fuelling up (events under 90 min): 7–12 g/kg in the 24 h before' };
-  let during;
-  if (finish === null) during = { text: 'Enter your expected finish time to see this.' };
-  else if (finish < 45) during = { text: 'Not needed for efforts under 45 min.' };
-  else if (finish <= 75) during = { text: 'Small amounts, or rinsing your mouth with a carb drink (45–75 min efforts).' };
-  else if (finish <= 150) during = { text: '30–60 g per hour (1–2.5 h efforts)', total: [Math.round((30 * finish) / 60 / 5) * 5, Math.round((60 * finish) / 60 / 5) * 5] };
-  else during = { text: 'Up to 90 g per hour (efforts over 2.5 h)' };
-  return { kg, load, finish, days, pre: { perKg: [1, 4], g: g(1, 4) }, during };
+  const g = CARB_PER_KG.map((x) => Math.round((x * kg) / 5) * 5);
+  return { kg, g, first: CARB_DAYS[0], last: CARB_DAYS[1] };
 }
 
 // Day items for the timeline and calendar: the user's (with dates set) plus
@@ -442,8 +427,8 @@ export function dayItems(plan) {
   const out = plan.leadIn.filter((l) => l.first !== null);
   const guide = plan.nutrition?.show ? carbGuide(plan.nutrition) : null;
   if (guide) {
-    out.push({ id: 'carbs', cat: 'carbs', group: 'days', label: 'Carbs today', amount: `${guide.days.g[0]}–${guide.days.g[1]} g`,
-      first: guide.days.first, last: guide.days.last, time: '', note: `${guide.days.name}. Published guideline, not personal advice.`, derived: true });
+    out.push({ id: 'carbs', cat: 'carbs', group: 'days', label: 'Carb load', amount: `${guide.g[0]}–${guide.g[1]} g carbs today`,
+      first: guide.first, last: guide.last, time: '', note: 'About 8–10 g per kg of body weight a day. A general suggestion, not personal advice.', derived: true });
   }
   return out;
 }

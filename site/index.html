@@ -107,7 +107,7 @@
   <p class="sub">Plan your race morning to the minute, and the days before and after. Get it as phone reminders, and print a cue card for the race.</p>
 
   <div class="card notice">
-    <b>Your plan, your amounts.</b> Only schedule what you've tested in training. The page never suggests doses or products; the only numbers it offers are published carbohydrate guideline ranges, if you ask for them. Not medical advice.
+    <b>Your plan, your amounts.</b> Only schedule what you've tested in training. The page never suggests doses or products; the only number it offers is a basic carb-loading amount, if you ask for it. Not medical advice.
     Plans are saved on this device only; nothing is uploaded.
   </div>
 
@@ -159,12 +159,10 @@
 
     <!-- Carbs -->
     <div class="card" id="carbCard" hidden>
-      <div class="head"><h2>Carb targets</h2></div>
+      <div class="head"><h2>Carb load</h2></div>
       <div class="grid">
         <div><label for="nWeight">Body weight</label><input id="nWeight" type="number" inputmode="decimal" min="0" max="600" step="0.1"></div>
         <div><label for="nUnit">Unit</label><select id="nUnit"><option value="kg">kg</option><option value="lb">lb</option></select></div>
-        <div class="full"><label for="nFinish">Expected finish time (h:mm)</label><input id="nFinish" inputmode="text" placeholder="1:15" autocomplete="off">
-          <p class="hint">Sets which guideline applies: under 90 min is "fuelling up", over 90 min is a full carb load.</p></div>
       </div>
       <div id="carbOut"></div>
       <p class="hint" id="carbSource"></p>
@@ -372,8 +370,7 @@ function render() {
       if (i.kind !== 'other') tags.push(String(i.rehearsed).trim() ? `<span class="tag ok">Rehearsed</span>` : `<span class="tag new">Not rehearsed</span>`);
     }
     if (flagged.has(i.id)) tags.push(`<span class="tag new">Check timing</span>`);
-    const guide = p.nutrition.show ? P.carbGuide(p.nutrition) : null;
-    if (guide && i.cat === 'breakfast') tags.push(`<span class="tag">Guideline: ${guide.pre.g[0]}–${guide.pre.g[1]} g carbs (1–4 g/kg, 1–4 h before)</span>`);
+
     const react = i.reaction && i.reaction.to > i.reaction.from
       ? `<span class="meta">Reaction window ${esc(P.tminus(i.offset - i.reaction.from))} to ${esc(P.tminus(i.offset - i.reaction.to))} (${esc(clock(i.offset - i.reaction.from))}–${esc(clock(i.offset - i.reaction.to))})${i.reaction.moving ? ': be moving' : ''}</span>` : '';
     const rule = i.before && p.items.find((o) => o.id === i.before.id)
@@ -421,44 +418,55 @@ function renderPicks(p) {
     : `<span class="sum">${esc(P.hm(i.offset))} before start · ${esc(clock(i.offset))}${i.amount ? ` · ${esc(i.amount)}` : ''}</span>`;
   const daySum = (l) => l.first === null ? '<span class="sum unset">Set your days</span>'
     : `<span class="sum">${esc(P.relDayRange(l))}${l.time ? ` · ${esc(P.ampm(l.time))}` : ''}${l.amount ? ` · ${esc(l.amount)}` : ''}</span>`;
-  H.picks = P.CATEGORIES.map(([cid, name]) => {
+  const cats = P.CATEGORIES.map(([cid, name]) => {
     const rows = P.CATALOG.filter((c) => c.cat === cid).map((c) => {
       const on = P.isTicked(p, c.id);
       const it = p.items.find((i) => i.cat === c.id), li = p.leadIn.find((l) => l.cat === c.id);
       let sum = '';
       if (on && c.carbs) {
         const g = P.carbGuide(p.nutrition);
-        sum = g ? `<span class="sum">${esc(P.relDayRange(g.days))} · ${g.days.g[0]}–${g.days.g[1]} g a day</span>` : '<span class="sum unset">Enter your weight below</span>';
+        sum = g ? `<span class="sum">${esc(P.relDayRange(g))} · ${g.g[0]}–${g.g[1]} g a day</span>` : '<span class="sum unset">Enter your weight below</span>';
       } else if (it) sum = itemSum(it);
       else if (li) sum = daySum(li);
       const chg = on && !c.carbs ? `<button type="button" class="chg" data-edit="${esc((it || li).id)}" data-kind="${it ? 'item' : 'day'}">Change</button>` : '';
-      return `<div class="pick"><input type="checkbox" id="pk-${c.id}" data-pick="${c.id}"${on ? ' checked' : ''}>
-        <label for="pk-${c.id}">${esc(c.label)}${sum}</label>${chg}</div>`;
+      return [`c-${c.id}`, `<input type="checkbox" id="pk-${c.id}" data-pick="${c.id}"${on ? ' checked' : ''}>
+        <label for="pk-${c.id}">${esc(c.label)}${sum}</label>${chg}`];
     });
     const own = [...p.items.filter((i) => !i.cat && i.group === cid).map((i) => [i, 'item']), ...p.leadIn.filter((l) => !l.cat && l.group === cid).map((l) => [l, 'day'])]
-      .map(([x, kind]) => `<div class="pick"><input type="checkbox" checked data-own="${esc(x.id)}" data-kind="${kind}" aria-label="Remove ${esc(x.label)}">
-        <label>${esc(x.label)}${kind === 'item' ? itemSum(x) : daySum(x)}</label><button type="button" class="chg" data-edit="${esc(x.id)}" data-kind="${kind}">Change</button></div>`);
-    return `<div class="cat"><h3>${esc(name)}</h3>${rows.join('')}${own.join('')}
-      <button type="button" class="addown" data-add="${cid}">+ Add your own</button></div>`;
-  }).join('');
+      .map(([x, kind]) => [`o-${x.id}`, `<input type="checkbox" checked data-own="${esc(x.id)}" data-kind="${kind}" aria-label="Remove ${esc(x.label)}">
+        <label>${esc(x.label)}${kind === 'item' ? itemSum(x) : daySum(x)}</label><button type="button" class="chg" data-edit="${esc(x.id)}" data-kind="${kind}">Change</button>`]);
+    return [cid, name, [...rows, ...own]];
+  });
+  // Redraw only the rows that changed, so the row under a finger mid-tap
+  // stays put (e.g. the carb line updating as the weight box loses focus).
+  const shape = cats.map(([cid, , rows]) => cid + ':' + rows.map((r) => r[0]).join(',')).join('|');
+  if (shape !== drawn.picksShape) {
+    drawn.picksShape = shape;
+    $('picks').innerHTML = cats.map(([cid, name, rows]) => `<div class="cat"><h3>${esc(name)}</h3>${rows.map(([k, h]) => `<div class="pick" data-row="${esc(k)}">${h}</div>`).join('')}
+      <button type="button" class="addown" data-add="${cid}">+ Add your own</button></div>`).join('');
+    for (const [, , rows] of cats) for (const [k, h] of rows) drawn['row:' + k] = h;
+    return;
+  }
+  for (const [, , rows] of cats) for (const [k, h] of rows) {
+    if (drawn['row:' + k] === h) continue;
+    drawn['row:' + k] = h;
+    document.querySelector(`#picks [data-row="${CSS.escape(k)}"]`).innerHTML = h;
+  }
 }
 
-// Carb targets from published guideline ranges, for the weight entered.
+// The carb-load amount for the weight entered.
 function renderCarbs(p) {
   const n = p.nutrition;
   $('carbCard').hidden = !n.show;
   if (!n.show) return;
   if (document.activeElement !== $('nWeight')) $('nWeight').value = n.weight ?? '';
   $('nUnit').value = n.unit;
-  if (document.activeElement !== $('nFinish')) $('nFinish').value = n.finish ? P.hm(n.finish) : '';
   const g = P.carbGuide(n);
-  H.carbOut = !g ? '<p class="empty" style="margin-top:12px">Enter your body weight to see your ranges.</p>' : `
+  H.carbOut = !g ? '<p class="empty" style="margin-top:12px">Enter your body weight to see your amount.</p>' : `
     <table class="carbs">
-      <tr><th>${esc(P.relDayRange(g.days).replace(/^./, (c) => c.toUpperCase()))}</th><td><b>${g.days.g[0]}–${g.days.g[1]} g</b> carbs a day<br><span class="hint" style="margin:0">${esc(g.days.name)}</span></td></tr>
-      <tr><th>Pre-race meal</th><td><b>${g.pre.g[0]}–${g.pre.g[1]} g</b> carbs<br><span class="hint" style="margin:0">1–4 g/kg, eaten 1–4 h before the start; the earlier you eat, the more toward the top</span></td></tr>
-      <tr><th>During the race</th><td>${g.during.total ? `<b>${g.during.total[0]}–${g.during.total[1]} g</b> in total<br>` : ''}<span class="hint" style="margin:0">${esc(g.during.text)}</span></td></tr>
+      <tr><th>2 days before and the day before</th><td><b>${g.g[0]}–${g.g[1]} g</b> carbs a day<br><span class="hint" style="margin:0">About 8–10 g per kg of body weight. Make carbs the main part of every meal and snack: rice, pasta, bread, potatoes, oats, fruit, juice.</span></td></tr>
     </table>`;
-  $('carbSource').textContent = `Ranges from published sports-nutrition guidelines: ${P.CARB_SOURCE}. They're general guidelines for healthy adult athletes, not personal advice; practise your carb intake in training first, and talk to a dietitian or doctor if you have a medical condition or special diet.`;
+  $('carbSource').textContent = "A basic, common carb-loading suggestion for healthy adult athletes, not personal advice. Try it before a hard training session first, and talk to a dietitian or doctor if you have a medical condition or special diet.";
 }
 
 function update(fn) { const p = plan(); if (!p) return; fn(p); save(); render(); }
@@ -498,8 +506,9 @@ $('nUnit').onchange = () => update((p) => {
   const u = $('nUnit').value;
   if (u !== p.nutrition.unit && p.nutrition.weight) p.nutrition.weight = Math.round((u === 'lb' ? p.nutrition.weight * P.LB_PER_KG : p.nutrition.weight / P.LB_PER_KG) * 10) / 10;
   p.nutrition.unit = u; setUnitPref(u);
+  $('nWeight').value = p.nutrition.weight ?? '';
 });
-$('nFinish').onchange = () => update((p) => { const v = P.parseOffset($('nFinish').value); p.nutrition.finish = v > 0 ? v : null; });
+
 
 // ---- plans ----
 function addPlan(p) { db.plans.push(p); db.current = p.id; save(); render(); $('planMsg').textContent = ''; }

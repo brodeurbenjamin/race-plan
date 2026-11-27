@@ -325,14 +325,22 @@ export const CATEGORIES = [
   ['sleep', 'Sleep'],
   ['food', 'Food & drink'],
   ['caffeine', 'Caffeine'],
-  ['supplements', 'Supplements'],
+  ['dailySupps', 'Daily supplements'],
+  ['raceSupps', 'Race-day supplements'],
   ['venue', 'At the venue'],
 ];
+// Categories whose write-ins are day items (dates) rather than race-day times.
+export const DAY_GROUPS = ['days', 'dailySupps'];
 
-// Things people often plan. Race-morning items (`offset`, minutes before the
-// start) or day items (`day`: first/last relative to race day, optional
-// time). Typical times are suggestions to edit. Caffeine pills and
-// supplements have no suggested time (null): the user sets their own.
+const mins = (hhmm) => { const [h, m] = String(hhmm || '09:00').split(':').map(Number); return h * 60 + m; };
+// Minutes before a start for a clock time on race day (never less than `min`).
+const beforeAt = (start, hhmm, min = 30) => Math.max(min, mins(start) - mins(hhmm));
+
+// Suggestions offered in each category (tap to add). Race-day items get a
+// typical time, some worked out from the start time so afternoon racers get
+// breakfast in the morning, then lunch and a pre-race meal. Day items have
+// first/last days and an optional time. Supplements have no suggestions:
+// people write in their own. Caffeine pills get no suggested time.
 export const CATALOG = [
   { id: 'shakeout', cat: 'days', label: 'Shakeout: short and easy', day: [-1, -1, ''] },
   { id: 'checkwave', cat: 'days', label: 'Check your wave time and the venue', day: [-2, -2, ''] },
@@ -340,27 +348,28 @@ export const CATALOG = [
   { id: 'dinner', cat: 'days', label: 'Carb-focused dinner', day: [-1, -1, '18:30'] },
   { id: 'hydrate', cat: 'days', label: 'Drink regularly through the day', day: [-1, -1, ''] },
   { id: 'pack', cat: 'days', label: 'Pack your bag and lay out kit', day: [-1, -1, '20:00'] },
-  { id: 'carbs', cat: 'days', label: 'Carb load (amount from your weight)', carbs: true },
+  { id: 'carbs', cat: 'days', label: 'Carb load', carbs: true },
   { id: 'lightsout', cat: 'sleep', label: 'Lights out', day: [-1, -1, '22:00'] },
-  { id: 'wake', cat: 'sleep', label: 'Wake-up alarm', kind: 'other', offset: 210 },
-  { id: 'breakfast', cat: 'food', label: 'Breakfast', kind: 'food', offset: 180 },
+  { id: 'wake', cat: 'sleep', label: 'Wake-up alarm', kind: 'other', at: (st) => (mins(st) <= 630 ? 210 : beforeAt(st, '07:30')) },
+  { id: 'breakfast', cat: 'food', label: 'Breakfast', kind: 'food', at: (st) => (mins(st) <= 630 ? 180 : beforeAt(st, '08:00')) },
+  { id: 'lunch', cat: 'food', label: 'Lunch', kind: 'food', show: (st) => mins(st) >= 780, at: (st) => beforeAt(st, '12:00', 60) },
+  { id: 'premeal', cat: 'food', label: 'Pre-race meal', kind: 'food', show: (st) => mins(st) > 630, offset: 180 },
   { id: 'water', cat: 'food', label: 'Water', kind: 'food', offset: 120 },
   { id: 'snack', cat: 'food', label: 'Pre-race snack', kind: 'food', offset: 75 },
   { id: 'electrolytes', cat: 'food', label: 'Electrolytes', kind: 'food', offset: 60 },
   { id: 'gel', cat: 'food', label: 'Gel before the start', kind: 'gel', offset: 12 },
-  { id: 'coffee', cat: 'caffeine', label: 'Coffee', kind: 'caffeine', offset: 180 },
+  { id: 'coffee', cat: 'caffeine', label: 'Coffee', kind: 'caffeine', at: (st) => (mins(st) <= 630 ? 180 : beforeAt(st, '08:00')) },
   { id: 'caffeine', cat: 'caffeine', label: 'Caffeine pill or gum', kind: 'caffeine', offset: null },
-  { id: 'bicarb', cat: 'supplements', label: 'Sodium bicarbonate', kind: 'supplement', offset: null },
-  { id: 'nitrate', cat: 'supplements', label: 'Nitrate (beet) on race morning', kind: 'supplement', offset: null },
-  { id: 'nitrateDays', cat: 'supplements', label: 'Nitrate (beet) on the days before', day: null },
-  { id: 'cherry', cat: 'supplements', label: 'Tart cherry', day: null },
-  { id: 'creatine', cat: 'supplements', label: 'Creatine: keep your usual', day: null, note: "Don't change it near the race." },
   { id: 'arrive', cat: 'venue', label: 'Arrive and check in', kind: 'activity', offset: 90, duration: 20, moving: false },
   { id: 'bathroom', cat: 'venue', label: 'Bathroom', kind: 'other', offset: 50 },
   { id: 'bagdrop', cat: 'venue', label: 'Bag drop', kind: 'other', offset: 45 },
   { id: 'warmup', cat: 'venue', label: 'Warm-up', kind: 'activity', offset: 40, duration: 25, moving: true },
   { id: 'corral', cat: 'venue', label: 'Start pen: keep moving', kind: 'activity', offset: 15, duration: 15, moving: true },
 ];
+// The suggestion's default time for this start (minutes before), or null.
+export const suggestedOffset = (c, start) => (c.at ? c.at(start) : c.offset ?? null);
+// Suggestions still to offer: not added yet, and fitting the start time.
+export const suggestions = (plan, cid) => CATALOG.filter((c) => c.cat === cid && !isTicked(plan, c.id) && (!c.show || c.show(plan.race.start)));
 export const catalogItem = (id) => CATALOG.find((c) => c.id === id);
 export const isDayEntry = (c) => c && 'day' in c;
 
@@ -382,7 +391,7 @@ export function tick(plan, cid) {
     const [first, last, time] = c.day || [null, null, ''];
     plan.leadIn.push({ id, cat: c.id, group: c.cat, label: c.label, amount: '', first, last, time, note: c.note || '' });
   } else {
-    plan.items.push({ id, cat: c.id, group: c.cat, label: c.label, kind: c.kind, offset: c.offset, amount: '', caffeine: 0,
+    plan.items.push({ id, cat: c.id, group: c.cat, label: c.label, kind: c.kind, offset: suggestedOffset(c, plan.race.start), amount: '', caffeine: 0,
       rehearsed: '', note: c.note || '', before: null, reaction: null,
       ...(c.kind === 'activity' ? { duration: c.duration, moving: c.moving } : {}) });
   }
@@ -401,7 +410,7 @@ export function untick(plan, cid) {
 }
 
 // Group for an item the user added themselves.
-export const groupOfKind = (kind) => ({ food: 'food', gel: 'food', caffeine: 'caffeine', supplement: 'supplements' })[kind] || 'venue';
+export const groupOfKind = (kind) => ({ food: 'food', gel: 'food', caffeine: 'caffeine', supplement: 'raceSupps' })[kind] || 'venue';
 
 // ---- carb loading -------------------------------------------------------------
 
@@ -468,7 +477,7 @@ export function normalisePlan(raw) {
       alertMin: num(raw.settings?.alertMin, 0, 60) },
     items: raw.items.slice(0, 60).map((i) => ({
       id: s(i.id, 20) || uid(), label: s(i.label, 80) || 'Item', kind: KINDS[i.kind] ? i.kind : 'other',
-      cat: catalogItem(i.cat) ? i.cat : '', group: CATEGORIES.some((c) => c[0] === i.group) ? i.group : groupOfKind(i.kind),
+      cat: catalogItem(i.cat) ? i.cat : '', group: CATEGORIES.some((c) => c[0] === i.group) ? i.group : groupOfKind(i.kind),  // old "supplements" -> race-day
       offset: i.offset === null || i.offset === '' || i.offset === undefined ? null : num(i.offset, 0, 24 * 60), amount: s(i.amount), caffeine: num(i.caffeine, 0, 2000), rehearsed: s(i.rehearsed, 300), note: s(i.note, 500),
       ...(i.kind === 'activity' ? { duration: num(i.duration, 0, 600, 15), moving: !!i.moving } : {}),
       before: i.before && i.before.id ? { id: s(i.before.id, 20), min: num(i.before.min, 0, 24 * 60) } : null,
@@ -477,7 +486,7 @@ export function normalisePlan(raw) {
     leadIn: (Array.isArray(raw.leadIn) ? raw.leadIn : []).slice(0, 40).map((l) => {
       const unset = l.first === null || l.first === undefined || l.first === '';
       const first = unset ? null : num(l.first, -60, 30), last = unset ? null : num(l.last ?? l.first, -60, 30);
-      return { id: s(l.id, 20) || uid(), cat: catalogItem(l.cat) ? l.cat : '', group: CATEGORIES.some((c) => c[0] === l.group) ? l.group : 'days',
+      return { id: s(l.id, 20) || uid(), cat: catalogItem(l.cat) ? l.cat : '', group: CATEGORIES.some((c) => c[0] === l.group) ? l.group : (l.group === 'supplements' ? 'dailySupps' : 'days'),
         label: s(l.label, 80) || 'Item', amount: s(l.amount), first: unset ? null : Math.min(first, last), last: unset ? null : Math.max(first, last),
         time: /^\d\d:\d\d$/.test(l.time || '') ? l.time : '', note: s(l.note, 500) };
     }),
@@ -492,12 +501,12 @@ export function normalisePlan(raw) {
   };
   // Plans made before the checklist: tick the matching boxes by name.
   const MATCH = [
-    ['breakfast', /breakfast/i], ['coffee', /coffee/i], ['caffeine', /caffeine (pill|gum)/i], ['bicarb', /bicarb/i],
-    ['nitrate', /beet|nitrate/i], ['gel', /^gel/i], ['warmup', /warm-?up/i], ['arrive', /arriv/i], ['bathroom', /bathroom/i],
+    ['breakfast', /breakfast/i], ['coffee', /coffee/i], ['caffeine', /caffeine (pill|gum)/i],
+    ['gel', /^gel/i], ['warmup', /warm-?up/i], ['lunch', /^lunch/i], ['premeal', /pre-?race meal/i], ['arrive', /arriv/i], ['bathroom', /bathroom/i],
     ['corral', /corral|start pen/i], ['electrolytes', /electrolyte/i], ['snack', /snack/i], ['wake', /wake/i], ['bagdrop', /bag drop/i],
   ];
   const MATCH_DAYS = [
-    ['cherry', /tart cherry/i], ['creatine', /creatine/i], ['nitrateDays', /beet|nitrate/i], ['shakeout', /shakeout/i],
+    ['shakeout', /shakeout/i],
     ['pack', /pack/i], ['dinner', /dinner/i], ['lightsout', /lights out/i], ['travel', /travel|fly/i],
   ];
   for (const [list, rules] of [[plan.items, MATCH], [plan.leadIn, MATCH_DAYS]]) {
@@ -507,6 +516,10 @@ export function normalisePlan(raw) {
       if (hit) { x.cat = hit[0]; x.group = catalogItem(hit[0]).cat; }
     }
   }
+  // Supplements are write-ins now: daily ones (day items) and race-day ones.
+  const SUPP = /bicarb|beet|nitrate|tart cherry|cherry|creatine|supplement/i;
+  for (const i of plan.items) if (!i.cat && (i.kind === 'supplement' || SUPP.test(i.label))) i.group = 'raceSupps';
+  for (const l of plan.leadIn) if (!l.cat && SUPP.test(l.label)) l.group = 'dailySupps';
   // Drop "before" rules that point at items that no longer exist.
   const ids = new Set(plan.items.map((i) => i.id));
   for (const i of plan.items) if (i.before && !ids.has(i.before.id)) i.before = null;

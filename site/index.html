@@ -110,38 +110,24 @@
 <div class="wrap">
   <p class="crumb"><a href="/">← Hybrid_by_Ben</a></p>
   <h1>Race Day Plan</h1>
-  <p class="sub">Plan your race day to the minute, and the days before and after. Get it as phone reminders, and print a cue card for the race.</p>
+  <p class="sub">Plan your race day to the minute, and the days before and after. Save it as an image for your phone, or add it to your calendar as reminders.</p>
 
   <div class="card notice">
     <b>Your plan, your amounts.</b> Only schedule what you've tested in training. The page never suggests doses or products; the only number it offers is a basic carb-loading amount, if you ask for it. Not medical advice.
-    Plans are saved on this device only; nothing is uploaded.
+    Nothing is saved or uploaded: the page starts fresh each visit. To keep your plan, save it as an image, add it to your calendar, or save a plan file.
   </div>
 
-  <!-- Which plan -->
-  <div class="card" id="plansCard">
-    <div id="noPlans">
-      <h2 style="margin-bottom:8px">Start a plan</h2>
-      <p class="empty">Enter your race and start time, then tick what you want in your plan.</p>
-      <div class="btns" style="margin-top:12px">
-        <button type="button" id="newBlank">Start a plan</button>
-        <button type="button" class="plain" id="importBtn1">Open a plan file</button>
-      </div>
-    </div>
-    <div id="havePlans" hidden>
-      <div class="grid">
-        <div class="full"><label for="planSel">Your plans</label><select id="planSel"></select></div>
-      </div>
-      <div class="btns" style="margin-top:12px">
-        <button type="button" class="ghost" id="newPlan">New plan</button>
-        <button type="button" class="plain" id="importBtn2">Open a plan file</button>
-        <button type="button" class="danger" id="delPlan">Delete this plan</button>
-      </div>
+  <!-- Open a file / clear -->
+  <div class="card">
+    <div class="btns">
+      <button type="button" class="plain" id="importBtn">Open a plan file</button>
+      <button type="button" class="danger" id="clearAll" style="margin-left:auto">Clear all</button>
     </div>
     <input type="file" id="importFile" accept=".json,application/json" hidden>
     <p class="note" id="planMsg" role="status"></p>
   </div>
 
-  <div id="planArea" hidden>
+  <div id="planArea">
     <!-- Race -->
     <div class="card">
       <div class="head"><h2>Race</h2></div>
@@ -318,17 +304,14 @@ const setUnitPref = (u) => { try { localStorage.setItem(UNITS, JSON.stringify({ 
 const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
-// ---- storage (this device only) ----
-let db = { current: null, plans: [] };
-try {
-  const raw = JSON.parse(localStorage.getItem(STORE));
-  if (raw && Array.isArray(raw.plans)) db = { current: raw.current, plans: raw.plans.map((p) => { try { return P.normalisePlan(p); } catch { return null; } }).filter(Boolean) };
-} catch {}
-function save() {
-  try { localStorage.setItem(STORE, JSON.stringify(db)); }
-  catch { $('planMsg').textContent = "Couldn't save on this device (private browsing?). Use Save plan file to keep a copy."; }
-}
-const plan = () => db.plans.find((p) => p.id === db.current);
+// ---- the plan (in memory only) ----
+// Nothing is kept between visits: a refresh or a new visit starts blank. Plans
+// saved by older versions of the page are wiped from this phone.
+try { localStorage.removeItem(STORE); } catch {}
+const freshPlan = () => { const p = P.blankPlan(localToday(), deviceTz); p.nutrition.unit = unitPref(); return p; };
+let current = freshPlan();
+const plan = () => current;
+const hasContent = (p) => p.items.length || p.leadIn.length || p.cues.length || p.nutrition.show || p.race.name;
 // Only replace a block's HTML when it changed: redrawing a list under a
 // finger that's mid-tap (e.g. a box's "change" firing as you tap the next
 // checkbox) swallows the tap.
@@ -352,11 +335,6 @@ function fillZones(current) {
 // ---- rendering ----
 function render() {
   const p = plan();
-  $('noPlans').hidden = db.plans.length > 0;
-  $('havePlans').hidden = db.plans.length === 0;
-  $('planArea').hidden = !p;
-  $('planSel').innerHTML = db.plans.map((x) => `<option value="${esc(x.id)}"${x.id === db.current ? ' selected' : ''}>${esc(x.race.name || 'Untitled race')} · ${esc(P.dayLabel(x.race.date))}</option>`).join('');
-  if (!p) return;
 
   $('rName').value = p.race.name; $('rDate').value = p.race.date; $('rStart').value = p.race.start;
   if (document.activeElement !== $('rDur')) $('rDur').value = p.race.duration ? P.hm(p.race.duration) : '';
@@ -513,7 +491,7 @@ function renderCarbs(p) {
   $('carbSource').textContent = "A basic, common carb-loading suggestion for healthy adult athletes, not personal advice. Try it before a hard training session first, and talk to a dietitian or doctor if you have a medical condition or special diet.";
 }
 
-function update(fn) { const p = plan(); if (!p) return; fn(p); P.syncPost(p); save(); render(); }
+function update(fn) { const p = plan(); fn(p); P.syncPost(p); render(); }
 
 // ---- plan builder ----
 // Which categories are open, kept across redraws.
@@ -563,36 +541,29 @@ $('nUnit').onchange = () => update((p) => {
 });
 
 
-// ---- plans ----
-function addPlan(p) { db.plans.push(p); db.current = p.id; save(); render(); $('planMsg').textContent = ''; }
-const newPlan = () => { const p = P.blankPlan(localToday(), deviceTz); p.nutrition.unit = unitPref(); addPlan(p); };
-$('newBlank').onclick = newPlan;
-$('newPlan').onclick = newPlan;
-$('planSel').onchange = () => { db.current = $('planSel').value; save(); render(); };
-$('delPlan').onclick = () => {
-  const p = plan();
-  if (!p || !confirm(`Delete "${p.race.name || 'Untitled race'}" from this device? Save a plan file first if you want a copy.`)) return;
-  db.plans = db.plans.filter((x) => x.id !== p.id);
-  db.current = db.plans[0]?.id ?? null;
-  save(); render();
+// ---- open a file / clear all ----
+function replacePlan(p, msg) {
+  current = p;
+  openCats.clear();
+  for (const k of Object.keys(drawn)) delete drawn[k];
+  render();
+  $('planMsg').textContent = msg;
+}
+$('clearAll').onclick = () => {
+  if (hasContent(plan()) && !confirm('Clear everything in this plan? Save it as an image or a plan file first if you want to keep it.')) return;
+  replacePlan(freshPlan(), 'Cleared.');
+  scrollTo({ top: 0, behavior: 'smooth' });
 };
-$('importBtn1').onclick = $('importBtn2').onclick = () => $('importFile').click();
+$('importBtn').onclick = () => $('importFile').click();
 $('importFile').onchange = async () => {
   const f = $('importFile').files[0];
   $('importFile').value = '';
   if (!f) return;
-  try {
-    const p = P.normalisePlan(JSON.parse(await f.text()));
-    const same = db.plans.findIndex((x) => x.id === p.id);
-    if (same >= 0) {
-      if (!confirm(`You already have "${db.plans[same].race.name || 'this plan'}" on this device. Replace it with the file?`)) { p.id = P.uid(); db.plans.push(p); }
-      else db.plans[same] = p;
-    } else db.plans.push(p);
-    db.current = p.id; save(); render();
-    $('planMsg').textContent = `Opened "${p.race.name || 'Untitled race'}".`;
-  } catch {
-    $('planMsg').textContent = "That file isn't a Race Day Plan file.";
-  }
+  let p;
+  try { p = P.normalisePlan(JSON.parse(await f.text())); }
+  catch { $('planMsg').textContent = "That file isn't a Race Day Plan file."; return; }
+  if (hasContent(plan()) && !confirm('Replace what you have on the page with this file?')) return;
+  replacePlan(p, `Opened "${p.race.name || 'Untitled race'}".`);
 };
 
 // ---- race fields ----
@@ -837,7 +808,6 @@ function download(name, type, text) {
 $('icsBtn').onclick = () => { const p = plan(); download(`${slug(p)}-plan.ics`, 'text/calendar', P.buildIcs(p, { leadIn: $('icsDays').checked })); };
 $('saveFile').onclick = () => { const p = plan(); download(`${slug(p)}-plan.json`, 'application/json', JSON.stringify(p, null, 2)); };
 
-if (!plan() && db.plans.length) db.current = db.plans[0].id;
 render();
 </script>
 </body>

@@ -14,8 +14,16 @@
  *   leadIn   days around the race: { id, label, amount, first, last, time, note }
  *            first/last are days relative to race day (-3 = 3 days before, 0 = race day, 2 = 2 days after)
  *   cues     in-race reminders: { id, at: "Run 3", when: "after"|"before"|"during", text }
+ *   nutrition { weight, unit: "kg"|"lb", finish: minutes|null, show } for the carb guide
  *
- * Nothing here suggests an amount or a product: every amount is the user's own text.
+ * Items and day items picked from the checklist carry `cat` (their CATALOG id)
+ * and every item has a `group` (its checklist category). An item's `offset`
+ * (or a day item's `first`/`last`) can be null: picked, but no time set yet.
+ *
+ * Amounts are the user's own text. The only numbers the page offers are the
+ * published carbohydrate guideline ranges (carbGuide), scaled by body weight
+ * and cited; never doses for caffeine or supplements, which get no suggested
+ * time either.
  */
 
 export const KINDS = {
@@ -143,7 +151,7 @@ export function leadInStatus(race, li, today) {
 
 // Items earliest first (biggest offset first); activities before items at the same time.
 export function sortedItems(plan) {
-  return [...plan.items].sort((a, b) => b.offset - a.offset || (a.kind === 'activity' ? -1 : 0) - (b.kind === 'activity' ? -1 : 0));
+  return plan.items.filter((i) => i.offset !== null).sort((a, b) => b.offset - a.offset || (a.kind === 'activity' ? -1 : 0) - (b.kind === 'activity' ? -1 : 0));
 }
 
 // Running caffeine total after each item, earliest first: Map(id -> mg so far).
@@ -165,7 +173,7 @@ function stateAt(plan, t) {
   // photos in the middle of a warm-up).
   let moving = false;
   for (const a of plan.items) {
-    if (a.kind !== 'activity' || !(a.duration > 0)) continue;
+    if (a.kind !== 'activity' || !(a.duration > 0) || a.offset === null) continue;
     if (t <= a.offset && t > a.offset - a.duration) {
       if (!a.moving) return { still: a };
       moving = true;
@@ -192,9 +200,9 @@ export function warnings(plan) {
   const byId = Object.fromEntries(plan.items.map((i) => [i.id, i]));
   const clock = (t) => ampm(clockAt(plan.race.start, t).hhmm);
 
-  for (const it of plan.items) {
+  for (const it of sortedItems(plan)) {
     // "At least N min before another item"
-    if (it.before && byId[it.before.id] && it.before.min > 0) {
+    if (it.before && byId[it.before.id] && byId[it.before.id].offset !== null && it.before.min > 0) {
       const other = byId[it.before.id];
       const gap = it.offset - other.offset;
       if (gap < it.before.min) {
@@ -229,6 +237,12 @@ export function warnings(plan) {
     const run = caffeineRunning(plan);
     const over = sortedItems(plan).find((i) => run.get(i.id) > limit);
     if (over) out.push({ level: 'warn', ids: [over.id], text: `Caffeine reaches ${run.get(over.id)} mg at ${tminus(over.offset)} (${over.label}); your limit is ${limit} mg.` });
+  }
+
+  // Picked from the checklist but no time set yet.
+  const unset = [...plan.items.filter((i) => i.offset === null), ...plan.leadIn.filter((l) => l.first === null)];
+  if (unset.length) {
+    out.push({ level: 'warn', ids: unset.map((i) => i.id), text: `Set a time for: ${unset.map((i) => i.label).join(', ')}. Use what you tested in training.` });
   }
 
   // Nothing new on race day.
@@ -286,7 +300,7 @@ export function buildIcs(plan, { leadIn = true, now = Date.now() } = {}) {
   L.push(...ev(`${plan.id}-start`, startUtc, startUtc + 90 * 60000, `${plan.race.name || 'Race'}: start`, cuesText(plan), false));
 
   if (leadIn) {
-    for (const li of plan.leadIn) {
+    for (const li of dayItems(plan)) {
       for (let d = li.first; d <= li.last; d++) {
         const date = addDays(plan.race.date, d).replace(/-/g, '');
         const t = /^\d\d:\d\d$/.test(li.time || '') ? li.time : '08:00';
@@ -305,6 +319,135 @@ export function buildIcs(plan, { leadIn = true, now = Date.now() } = {}) {
 
 export const relDayRange = (li) => (li.first === li.last ? relDay(li.first) : `${relDay(li.first)} to ${relDay(li.last)}`);
 
+// ---- the checklist ------------------------------------------------------------
+
+export const CATEGORIES = [
+  ['days', 'Days before'],
+  ['sleep', 'Sleep'],
+  ['food', 'Food & drink'],
+  ['caffeine', 'Caffeine'],
+  ['supplements', 'Supplements'],
+  ['venue', 'At the venue'],
+];
+
+// Things people often plan. Race-morning items (`offset`, minutes before the
+// start) or day items (`day`: first/last relative to race day, optional
+// time). Typical times are suggestions to edit. Caffeine pills and
+// supplements have no suggested time (null): the user sets their own.
+export const CATALOG = [
+  { id: 'shakeout', cat: 'days', label: 'Shakeout: short and easy', day: [-1, -1, ''] },
+  { id: 'checkwave', cat: 'days', label: 'Check your wave time and the venue', day: [-2, -2, ''] },
+  { id: 'travel', cat: 'days', label: 'Travel / hotel check-in', day: [-1, -1, ''] },
+  { id: 'dinner', cat: 'days', label: 'Carb-focused dinner', day: [-1, -1, '18:30'] },
+  { id: 'hydrate', cat: 'days', label: 'Drink regularly through the day', day: [-1, -1, ''] },
+  { id: 'pack', cat: 'days', label: 'Pack your bag and lay out kit', day: [-1, -1, '20:00'] },
+  { id: 'carbs', cat: 'days', label: 'Daily carb targets from your weight', carbs: true },
+  { id: 'lightsout', cat: 'sleep', label: 'Lights out', day: [-1, -1, '22:00'] },
+  { id: 'wake', cat: 'sleep', label: 'Wake-up alarm', kind: 'other', offset: 210 },
+  { id: 'breakfast', cat: 'food', label: 'Breakfast', kind: 'food', offset: 180 },
+  { id: 'water', cat: 'food', label: 'Water', kind: 'food', offset: 120 },
+  { id: 'snack', cat: 'food', label: 'Pre-race snack', kind: 'food', offset: 75 },
+  { id: 'electrolytes', cat: 'food', label: 'Electrolytes', kind: 'food', offset: 60 },
+  { id: 'gel', cat: 'food', label: 'Gel before the start', kind: 'gel', offset: 12 },
+  { id: 'coffee', cat: 'caffeine', label: 'Coffee', kind: 'caffeine', offset: 180 },
+  { id: 'caffeine', cat: 'caffeine', label: 'Caffeine pill or gum', kind: 'caffeine', offset: null },
+  { id: 'bicarb', cat: 'supplements', label: 'Sodium bicarbonate', kind: 'supplement', offset: null },
+  { id: 'nitrate', cat: 'supplements', label: 'Nitrate (beet) on race morning', kind: 'supplement', offset: null },
+  { id: 'nitrateDays', cat: 'supplements', label: 'Nitrate (beet) on the days before', day: null },
+  { id: 'cherry', cat: 'supplements', label: 'Tart cherry', day: null },
+  { id: 'creatine', cat: 'supplements', label: 'Creatine: keep your usual', day: null, note: "Don't change it near the race." },
+  { id: 'arrive', cat: 'venue', label: 'Arrive and check in', kind: 'activity', offset: 90, duration: 20, moving: false },
+  { id: 'bathroom', cat: 'venue', label: 'Bathroom', kind: 'other', offset: 50 },
+  { id: 'bagdrop', cat: 'venue', label: 'Bag drop', kind: 'other', offset: 45 },
+  { id: 'warmup', cat: 'venue', label: 'Warm-up', kind: 'activity', offset: 40, duration: 25, moving: true },
+  { id: 'corral', cat: 'venue', label: 'Start pen: keep moving', kind: 'activity', offset: 15, duration: 15, moving: true },
+];
+export const catalogItem = (id) => CATALOG.find((c) => c.id === id);
+export const isDayEntry = (c) => c && 'day' in c;
+
+export function isTicked(plan, cid) {
+  if (catalogItem(cid)?.carbs) return !!plan.nutrition?.show;
+  return plan.items.some((i) => i.cat === cid) || plan.leadIn.some((l) => l.cat === cid);
+}
+
+// Adds a checklist entry with its suggested time (or none). Returns the new id.
+export function tick(plan, cid) {
+  const c = catalogItem(cid);
+  if (!c || isTicked(plan, cid)) return null;
+  if (c.carbs) {
+    plan.nutrition = { ...plan.nutrition, show: true };
+    return 'carbs';
+  }
+  const id = uid();
+  if (isDayEntry(c)) {
+    const [first, last, time] = c.day || [null, null, ''];
+    plan.leadIn.push({ id, cat: c.id, group: c.cat, label: c.label, amount: '', first, last, time, note: c.note || '' });
+  } else {
+    plan.items.push({ id, cat: c.id, group: c.cat, label: c.label, kind: c.kind, offset: c.offset, amount: '', caffeine: 0,
+      rehearsed: '', note: c.note || '', before: null, reaction: null,
+      ...(c.kind === 'activity' ? { duration: c.duration, moving: c.moving } : {}) });
+  }
+  return id;
+}
+
+export function untick(plan, cid) {
+  if (catalogItem(cid)?.carbs) {
+    plan.nutrition = { ...plan.nutrition, show: false };
+    return;
+  }
+  const gone = new Set(plan.items.filter((i) => i.cat === cid).map((i) => i.id));
+  plan.items = plan.items.filter((i) => i.cat !== cid);
+  plan.leadIn = plan.leadIn.filter((l) => l.cat !== cid);
+  for (const i of plan.items) if (i.before && gone.has(i.before.id)) i.before = null;
+}
+
+// Group for an item the user added themselves.
+export const groupOfKind = (kind) => ({ food: 'food', gel: 'food', caffeine: 'caffeine', supplement: 'supplements' })[kind] || 'venue';
+
+// ---- carbohydrate guide --------------------------------------------------------
+
+export const CARB_SOURCE = 'American College of Sports Medicine, Academy of Nutrition and Dietetics and Dietitians of Canada, "Nutrition and Athletic Performance" (joint position statement, 2016)';
+export const LB_PER_KG = 2.20462;
+
+/**
+ * Published carbohydrate guideline ranges for this athlete (null without a
+ * usable weight). Event length picks the row: under 90 min is "fuelling up"
+ * (7-12 g/kg in the 24 h before); over 90 min is carb loading (10-12 g/kg a
+ * day for 36-48 h). Pre-event: 1-4 g/kg, 1-4 h before. During: under 45 min
+ * not needed; 45-75 min small amounts or a mouth rinse; 1-2.5 h 30-60 g/h;
+ * longer, up to 90 g/h. Grams are rounded to 5.
+ */
+export function carbGuide(n) {
+  const w = Number(n?.weight);
+  const kg = n?.unit === 'lb' ? w / LB_PER_KG : w;
+  if (!(kg >= 30 && kg <= 250)) return null;
+  const g = (lo, hi) => [Math.round((lo * kg) / 5) * 5, Math.round((hi * kg) / 5) * 5];
+  const finish = Number(n.finish) > 0 ? Number(n.finish) : null;
+  const load = finish !== null && finish > 90;
+  const days = load
+    ? { first: -2, last: -1, perKg: [10, 12], g: g(10, 12), name: 'Carb loading (events over 90 min): 10–12 g/kg a day for the 36–48 h before' }
+    : { first: -1, last: -1, perKg: [7, 12], g: g(7, 12), name: 'Fuelling up (events under 90 min): 7–12 g/kg in the 24 h before' };
+  let during;
+  if (finish === null) during = { text: 'Enter your expected finish time to see this.' };
+  else if (finish < 45) during = { text: 'Not needed for efforts under 45 min.' };
+  else if (finish <= 75) during = { text: 'Small amounts, or rinsing your mouth with a carb drink (45–75 min efforts).' };
+  else if (finish <= 150) during = { text: '30–60 g per hour (1–2.5 h efforts)', total: [Math.round((30 * finish) / 60 / 5) * 5, Math.round((60 * finish) / 60 / 5) * 5] };
+  else during = { text: 'Up to 90 g per hour (efforts over 2.5 h)' };
+  return { kg, load, finish, days, pre: { perKg: [1, 4], g: g(1, 4) }, during };
+}
+
+// Day items for the timeline and calendar: the user's (with dates set) plus
+// the carb targets when switched on.
+export function dayItems(plan) {
+  const out = plan.leadIn.filter((l) => l.first !== null);
+  const guide = plan.nutrition?.show ? carbGuide(plan.nutrition) : null;
+  if (guide) {
+    out.push({ id: 'carbs', cat: 'carbs', group: 'days', label: 'Carbs today', amount: `${guide.days.g[0]}–${guide.days.g[1]} g`,
+      first: guide.days.first, last: guide.days.last, time: '', note: `${guide.days.name}. Published guideline, not personal advice.`, derived: true });
+  }
+  return out;
+}
+
 // ---- in-race cues -------------------------------------------------------------
 
 export function sortedCues(plan) {
@@ -322,29 +465,8 @@ export function blankPlan(today, tz) {
     race: { name: '', date: addDays(today, 28), start: '09:00', tz },
     settings: { caffeineLimit: null, alertMin: 0 },
     items: [], leadIn: [], cues: [],
+    nutrition: { weight: null, unit: 'kg', finish: null, show: false },
   };
-}
-
-// A generic example: common slots with example times and NO amounts or
-// products. Everyone fills in their own, from what they've tested.
-export function examplePlan(today, tz) {
-  const p = blankPlan(today, tz);
-  p.race.name = 'Example race';
-  const it = (label, kind, offset, extra = {}) => ({ id: uid(), label, kind, offset, amount: '', caffeine: 0, rehearsed: '', note: '', before: null, reaction: null, ...extra });
-  p.items = [
-    it('Breakfast', 'food', 180, { note: 'What you ate before your best training sessions.' }),
-    it('Coffee', 'caffeine', 180),
-    it('Arrive and check in', 'activity', 105, { duration: 30, moving: false }),
-    it('Bathroom', 'other', 70),
-    it('Warm-up', 'activity', 40, { duration: 25, moving: true }),
-    it('Corral: keep moving', 'activity', 15, { duration: 15, moving: true }),
-    it('Gel', 'gel', 12),
-  ];
-  p.leadIn = [
-    { id: uid(), label: 'Shakeout: short and easy', amount: '', first: -1, last: -1, time: '', note: '' },
-  ];
-  p.cues = [];
-  return p;
 }
 
 // Cleans a plan read from storage or an imported file. Throws if it isn't one.
@@ -361,19 +483,45 @@ export function normalisePlan(raw) {
       alertMin: num(raw.settings?.alertMin, 0, 60) },
     items: raw.items.slice(0, 60).map((i) => ({
       id: s(i.id, 20) || uid(), label: s(i.label, 80) || 'Item', kind: KINDS[i.kind] ? i.kind : 'other',
-      offset: num(i.offset, 0, 24 * 60), amount: s(i.amount), caffeine: num(i.caffeine, 0, 2000), rehearsed: s(i.rehearsed, 300), note: s(i.note, 500),
+      cat: catalogItem(i.cat) ? i.cat : '', group: CATEGORIES.some((c) => c[0] === i.group) ? i.group : groupOfKind(i.kind),
+      offset: i.offset === null || i.offset === '' || i.offset === undefined ? null : num(i.offset, 0, 24 * 60), amount: s(i.amount), caffeine: num(i.caffeine, 0, 2000), rehearsed: s(i.rehearsed, 300), note: s(i.note, 500),
       ...(i.kind === 'activity' ? { duration: num(i.duration, 0, 600, 15), moving: !!i.moving } : {}),
       before: i.before && i.before.id ? { id: s(i.before.id, 20), min: num(i.before.min, 0, 24 * 60) } : null,
       reaction: i.reaction ? { from: num(i.reaction.from, 0, 24 * 60), to: num(i.reaction.to, 0, 24 * 60), moving: i.reaction.moving !== false } : null,
     })),
     leadIn: (Array.isArray(raw.leadIn) ? raw.leadIn : []).slice(0, 40).map((l) => {
-      const first = num(l.first, -60, 30), last = num(l.last, -60, 30);
-      return { id: s(l.id, 20) || uid(), label: s(l.label, 80) || 'Item', amount: s(l.amount), first: Math.min(first, last), last: Math.max(first, last),
+      const unset = l.first === null || l.first === undefined || l.first === '';
+      const first = unset ? null : num(l.first, -60, 30), last = unset ? null : num(l.last ?? l.first, -60, 30);
+      return { id: s(l.id, 20) || uid(), cat: catalogItem(l.cat) ? l.cat : '', group: CATEGORIES.some((c) => c[0] === l.group) ? l.group : 'days',
+        label: s(l.label, 80) || 'Item', amount: s(l.amount), first: unset ? null : Math.min(first, last), last: unset ? null : Math.max(first, last),
         time: /^\d\d:\d\d$/.test(l.time || '') ? l.time : '', note: s(l.note, 500) };
     }),
     cues: (Array.isArray(raw.cues) ? raw.cues : []).slice(0, 40).map((c) => ({
       id: s(c.id, 20) || uid(), at: SEGMENTS.includes(c.at) ? c.at : 'Start', when: ['before', 'during', 'after'].includes(c.when) ? c.when : 'after', text: s(c.text, 120) })),
+    nutrition: {
+      weight: Number(raw.nutrition?.weight) > 0 ? Math.min(600, Math.round(Number(raw.nutrition.weight) * 10) / 10) : null,
+      unit: raw.nutrition?.unit === 'lb' ? 'lb' : 'kg',
+      finish: Number(raw.nutrition?.finish) > 0 ? num(raw.nutrition.finish, 1, 24 * 60) : null,
+      show: !!raw.nutrition?.show,
+    },
   };
+  // Plans made before the checklist: tick the matching boxes by name.
+  const MATCH = [
+    ['breakfast', /breakfast/i], ['coffee', /coffee/i], ['caffeine', /caffeine (pill|gum)/i], ['bicarb', /bicarb/i],
+    ['nitrate', /beet|nitrate/i], ['gel', /^gel/i], ['warmup', /warm-?up/i], ['arrive', /arriv/i], ['bathroom', /bathroom/i],
+    ['corral', /corral|start pen/i], ['electrolytes', /electrolyte/i], ['snack', /snack/i], ['wake', /wake/i], ['bagdrop', /bag drop/i],
+  ];
+  const MATCH_DAYS = [
+    ['cherry', /tart cherry/i], ['creatine', /creatine/i], ['nitrateDays', /beet|nitrate/i], ['shakeout', /shakeout/i],
+    ['pack', /pack/i], ['dinner', /dinner/i], ['lightsout', /lights out/i], ['travel', /travel|fly/i],
+  ];
+  for (const [list, rules] of [[plan.items, MATCH], [plan.leadIn, MATCH_DAYS]]) {
+    for (const x of list) {
+      if (x.cat) continue;
+      const hit = rules.find(([cid, re]) => re.test(x.label) && !list.some((y) => y.cat === cid));
+      if (hit) { x.cat = hit[0]; x.group = catalogItem(hit[0]).cat; }
+    }
+  }
   // Drop "before" rules that point at items that no longer exist.
   const ids = new Set(plan.items.map((i) => i.id));
   for (const i of plan.items) if (i.before && !ids.has(i.before.id)) i.before = null;

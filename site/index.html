@@ -74,6 +74,20 @@
   legend { font-size:13px; color:var(--muted); padding:0 4px }
   .inline { display:flex; gap:8px; align-items:center; flex-wrap:wrap } .inline > * { flex:1 1 120px }
   .hint { font-size:12px; color:var(--muted); margin:4px 0 0 }
+  /* Checklist */
+  .cat { border-top:1px solid var(--line); padding:12px 0 4px } .cat:first-of-type { border-top:0; padding-top:0 }
+  .cat h3 { font-size:14px; margin:0 0 6px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; font-size:12px }
+  .pick { display:flex; gap:10px; align-items:flex-start; padding:7px 0 }
+  .pick input { flex:none; margin:2px 0 0 }
+  .pick label { color:var(--text); font-size:15px; margin:0; cursor:pointer }
+  .pick .sum { display:block; font-size:12px; color:var(--muted); margin-top:1px }
+  .pick .sum.unset { color:var(--warn); font-weight:600 }
+  .pick .chg { background:none; border:0; color:var(--accent); font-weight:600; font-size:12px; padding:0 0 0 6px; min-height:0; cursor:pointer }
+  .addown { background:none; border:0; color:var(--accent); font-weight:600; font-size:13px; padding:6px 0; min-height:0; cursor:pointer }
+  details.tz summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; padding:6px 0 }
+  .carbs { width:100%; border-collapse:collapse; font-size:14px; margin-top:12px }
+  .carbs th, .carbs td { text-align:left; vertical-align:top; padding:8px 8px 8px 0; border-top:1px solid var(--line) }
+  .carbs th { font-weight:600; width:38% } .carbs td b { font-size:16px }
   footer { color:var(--muted); font-size:12px; text-align:center; margin-top:28px }
   footer p { margin:4px 0 } footer a { color:var(--accent); font-weight:600 }
   /* Printing: only the chosen card, large and plain. */
@@ -93,7 +107,7 @@
   <p class="sub">Plan your race morning to the minute, and the days before and after. Get it as phone reminders, and print a cue card for the race.</p>
 
   <div class="card notice">
-    <b>Your plan, your amounts.</b> This page never suggests doses or products. Only schedule what you've tested in training. Not medical advice.
+    <b>Your plan, your amounts.</b> Only schedule what you've tested in training. The page never suggests doses or products; the only numbers it offers are published carbohydrate guideline ranges, if you ask for them. Not medical advice.
     Plans are saved on this device only; nothing is uploaded.
   </div>
 
@@ -101,10 +115,9 @@
   <div class="card" id="plansCard">
     <div id="noPlans">
       <h2 style="margin-bottom:8px">Start a plan</h2>
-      <p class="empty">Start blank, or from an example with the usual race-morning slots and no amounts filled in.</p>
+      <p class="empty">Enter your race and start time, then tick what you want in your plan.</p>
       <div class="btns" style="margin-top:12px">
-        <button type="button" id="newBlank">Start blank</button>
-        <button type="button" class="ghost" id="newExample">Start from the example</button>
+        <button type="button" id="newBlank">Start a plan</button>
         <button type="button" class="plain" id="importBtn1">Open a plan file</button>
       </div>
     </div>
@@ -130,10 +143,31 @@
         <div class="full"><label for="rName">Race name</label><input id="rName" maxlength="80" placeholder="e.g. HYROX Paris, Men's Pro"></div>
         <div><label for="rDate">Race date</label><input id="rDate" type="date"></div>
         <div><label for="rStart">Your start time (your wave)</label><input id="rStart" type="time"></div>
-        <div class="full"><label for="rTz">Race time zone</label><select id="rTz"></select>
-          <p class="hint">Times show in race-local time, so they stay right after you travel.</p></div>
       </div>
+      <details class="tz"><summary id="tzSum">Racing in another time zone?</summary>
+        <label for="rTz">Race time zone</label><select id="rTz"></select>
+        <p class="hint">Times show in race-local time, so they stay right after you travel.</p></details>
       <p class="count" id="countdown"></p>
+    </div>
+
+    <!-- Checklist -->
+    <div class="card" id="pickCard">
+      <div class="head"><h2>What do you want in your plan?</h2></div>
+      <p class="hint" style="margin:-6px 0 12px">Tick to add. Suggested times are typical; tap Change to set your own. Supplements and caffeine pills have no suggested time: you set it.</p>
+      <div id="picks"></div>
+    </div>
+
+    <!-- Carbs -->
+    <div class="card" id="carbCard" hidden>
+      <div class="head"><h2>Carb targets</h2></div>
+      <div class="grid">
+        <div><label for="nWeight">Body weight</label><input id="nWeight" type="number" inputmode="decimal" min="0" max="600" step="0.1"></div>
+        <div><label for="nUnit">Unit</label><select id="nUnit"><option value="kg">kg</option><option value="lb">lb</option></select></div>
+        <div class="full"><label for="nFinish">Expected finish time (h:mm)</label><input id="nFinish" inputmode="text" placeholder="1:15" autocomplete="off">
+          <p class="hint">Sets which guideline applies: under 90 min is "fuelling up", over 90 min is a full carb load.</p></div>
+      </div>
+      <div id="carbOut"></div>
+      <p class="hint" id="carbSource"></p>
     </div>
 
     <div class="card" id="warnCard" hidden>
@@ -143,12 +177,9 @@
 
     <!-- Race morning -->
     <div class="card" id="morningCard">
-      <div class="head"><h2>Race morning</h2>
+      <div class="head"><h2>Your race morning</h2>
         <button type="button" class="plain noprint" data-print="morningCard">Print</button></div>
       <div class="rows" id="morning"></div>
-      <div class="btns noprint" style="margin-top:12px">
-        <button type="button" id="addItem">Add an item</button>
-      </div>
       <div class="grid noprint" style="margin-top:12px">
         <div><label for="cafLimit">Caffeine limit, mg (optional)</label><input id="cafLimit" type="number" inputmode="numeric" min="0" max="5000" placeholder="Your own limit"></div>
       </div>
@@ -157,11 +188,10 @@
 
     <!-- Days around the race -->
     <div class="card" id="daysCard">
-      <div class="head"><h2>Days before and after</h2>
+      <div class="head"><h2>Your days before and after</h2>
         <button type="button" class="plain noprint" data-print="daysCard">Print</button></div>
       <div class="rows" id="days"></div>
-      <div class="btns noprint" style="margin-top:12px"><button type="button" id="addDay">Add a day item</button></div>
-      <p class="hint noprint">For things on the days around the race: a daily supplement, travel, a shakeout.</p>
+      <p class="hint noprint">Tap an item to change it.</p>
     </div>
 
     <!-- In race -->
@@ -239,6 +269,7 @@
     <div class="full"><label for="dAmount">Amount or details (your own)</label><input id="dAmount" maxlength="200"></div>
     <div><label for="dFirst">From</label><select id="dFirst"></select></div>
     <div><label for="dLast">to</label><select id="dLast"></select></div>
+    <p class="hint full" id="dUnsetHint" hidden>Set the days you take it, from what you tested in training.</p>
     <div><label for="dTime">Reminder time (optional)</label><input id="dTime" type="time"><p class="hint">Wherever you are that day. Calendar uses 8:00 AM if empty.</p></div>
     <div class="full"><label for="dNote">Note</label><textarea id="dNote" maxlength="500"></textarea></div>
   </div>
@@ -263,6 +294,10 @@ import * as P from './plan.js';
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const STORE = 'hbb.race-day-plan.v1';
+// kg or lb, remembered on this phone for every Hybrid_by_Ben tool.
+const UNITS = 'hbb.units.v1';
+const unitPref = () => { try { return JSON.parse(localStorage.getItem(UNITS))?.weight === 'lb' ? 'lb' : 'kg'; } catch { return 'kg'; } };
+const setUnitPref = (u) => { try { localStorage.setItem(UNITS, JSON.stringify({ ...(JSON.parse(localStorage.getItem(UNITS)) || {}), weight: u })); } catch {} };
 const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
@@ -277,6 +312,11 @@ function save() {
   catch { $('planMsg').textContent = "Couldn't save on this device (private browsing?). Use Save plan file to keep a copy."; }
 }
 const plan = () => db.plans.find((p) => p.id === db.current);
+// Only replace a block's HTML when it changed: redrawing a list under a
+// finger that's mid-tap (e.g. a box's "change" firing as you tap the next
+// checkbox) swallows the tap.
+const drawn = {};
+const H = new Proxy({}, { set(_, id, html) { if (drawn[id] !== html) { drawn[id] = html; $(id).innerHTML = html; } return true; } });
 
 // ---- setup of selects ----
 $('iKind').innerHTML = Object.entries(P.KINDS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
@@ -303,6 +343,9 @@ function render() {
 
   $('rName').value = p.race.name; $('rDate').value = p.race.date; $('rStart').value = p.race.start;
   fillZones(p.race.tz);
+  $('tzSum').textContent = p.race.tz === deviceTz ? 'Racing in another time zone?' : `Race time zone: ${p.race.tz}`;
+  renderPicks(p);
+  renderCarbs(p);
   $('cafLimit').value = p.settings.caffeineLimit ?? '';
   $('alertMin').value = String(p.settings.alertMin || 0);
   const n = P.daysBetween(localToday(), p.race.date);
@@ -313,7 +356,7 @@ function render() {
   // Warnings
   const w = P.warnings(p);
   $('warnCard').hidden = !w.length;
-  $('warns').innerHTML = w.map((x) => `<li class="${x.level}"><b>${x.level === 'warn' ? 'Check:' : 'Note:'}</b> ${esc(x.text)}</li>`).join('');
+  H.warns = w.map((x) => `<li class="${x.level}"><b>${x.level === 'warn' ? 'Check:' : 'Note:'}</b> ${esc(x.text)}</li>`).join('');
   const flagged = new Set(w.filter((x) => x.level === 'warn').flatMap((x) => x.ids));
 
   // Morning
@@ -329,6 +372,8 @@ function render() {
       if (i.kind !== 'other') tags.push(String(i.rehearsed).trim() ? `<span class="tag ok">Rehearsed</span>` : `<span class="tag new">Not rehearsed</span>`);
     }
     if (flagged.has(i.id)) tags.push(`<span class="tag new">Check timing</span>`);
+    const guide = p.nutrition.show ? P.carbGuide(p.nutrition) : null;
+    if (guide && i.cat === 'breakfast') tags.push(`<span class="tag">Guideline: ${guide.pre.g[0]}–${guide.pre.g[1]} g carbs (1–4 g/kg, 1–4 h before)</span>`);
     const react = i.reaction && i.reaction.to > i.reaction.from
       ? `<span class="meta">Reaction window ${esc(P.tminus(i.offset - i.reaction.from))} to ${esc(P.tminus(i.offset - i.reaction.to))} (${esc(clock(i.offset - i.reaction.from))}–${esc(clock(i.offset - i.reaction.to))})${i.reaction.moving ? ': be moving' : ''}</span>` : '';
     const rule = i.before && p.items.find((o) => o.id === i.before.id)
@@ -340,15 +385,21 @@ function render() {
   });
   rows.push(`<div class="row start"><span class="when"><b>${esc(P.ampm(p.race.start))}</b><span>T-0:00</span></span>
     <span class="what"><b>Start</b>${anyCaf ? ` <span class="amt">· ${run.size ? Math.max(...run.values()) : 0} mg caffeine in total</span>` : ''}</span></div>`);
-  $('morning').innerHTML = p.items.length ? rows.join('') : `<p class="empty">Nothing yet. Add your breakfast, warm-up and anything you take, timed back from your start.</p>`;
+  const unsetRows = p.items.filter((i) => i.offset === null).map((i) => `<button type="button" class="row" data-item="${esc(i.id)}">
+      <span class="when"><b>—</b><span>no time</span></span>
+      <span class="what"><b>${esc(i.label)}</b>${i.amount ? ` <span class="amt">· ${esc(i.amount)}</span>` : ''}<span class="tags"><span class="tag new">Set your time</span></span></span></button>`);
+  H.morning = p.items.length ? unsetRows.join('') + rows.join('') : `<p class="empty">Nothing yet. Tick what you want above.</p>`;
 
   // Days around the race
   const today = localToday();
-  const days = [...p.leadIn].sort((a, b) => a.first - b.first || a.last - b.last);
-  $('days').innerHTML = days.length ? days.map((l) => {
+  const days = P.dayItems(p).sort((a, b) => a.first - b.first || a.last - b.last);
+  const unsetDays = p.leadIn.filter((l) => l.first === null).map((l) => `<button type="button" class="row" data-day="${esc(l.id)}">
+      <span class="when"><b>—</b><span>no days</span></span>
+      <span class="what"><b>${esc(l.label)}</b>${l.amount ? ` <span class="amt">· ${esc(l.amount)}</span>` : ''}<span class="tags"><span class="tag new">Set your days</span></span></span></button>`).join('');
+  H.days = (days.length || unsetDays) ? unsetDays + days.map((l) => {
     const s = P.leadInStatus(p.race, l, today);
     const range = s.from === s.to ? P.dayLabel(s.from) : `${P.dayLabel(s.from)} – ${P.dayLabel(s.to)}`;
-    return `<button type="button" class="row" data-day="${esc(l.id)}">
+    return `<button type="button" class="row" ${l.derived ? 'data-carbs="1"' : `data-day="${esc(l.id)}"`}>
       <span class="when"><b>${esc(l.first === l.last ? (l.first === 0 ? 'Race day' : (l.first < 0 ? `${-l.first}d before` : `${l.first}d after`)) : `${l.last - l.first + 1} days`)}</b><span>${l.time ? esc(P.ampm(l.time)) : ''}</span></span>
       <span class="what"><b>${esc(l.label)}</b>${l.amount ? ` <span class="amt">· ${esc(l.amount)}</span>` : ''}
         <span class="meta">${esc(range)} · ${esc(P.relDayRange(l))}</span>${l.note ? `<span class="meta">${esc(l.note)}</span>` : ''}
@@ -358,20 +409,103 @@ function render() {
   // Cues
   $('cuesTitle').textContent = p.race.name || 'Race';
   const cues = P.sortedCues(p);
-  $('cues').innerHTML = cues.length ? cues.map((c) => `<button type="button" class="row cue" data-cue="${esc(c.id)}" style="display:flex">
+  H.cues = cues.length ? cues.map((c) => `<button type="button" class="row cue" data-cue="${esc(c.id)}" style="display:flex">
       <span class="at">${esc(P.cueWhen(c))}</span><span>${esc(c.text)}</span></button>`).join('') : `<p class="empty">Nothing yet.</p>`;
+}
+
+// The checklist: one section per category, a box per catalogue entry, the
+// user's own items under it, and "Add your own".
+function renderPicks(p) {
+  const clock = (t) => { const c = P.clockAt(p.race.start, t); return `${P.ampm(c.hhmm)}${c.day < 0 ? ' (day before)' : ''}`; };
+  const itemSum = (i) => i.offset === null ? '<span class="sum unset">Set your time</span>'
+    : `<span class="sum">${esc(P.hm(i.offset))} before start · ${esc(clock(i.offset))}${i.amount ? ` · ${esc(i.amount)}` : ''}</span>`;
+  const daySum = (l) => l.first === null ? '<span class="sum unset">Set your days</span>'
+    : `<span class="sum">${esc(P.relDayRange(l))}${l.time ? ` · ${esc(P.ampm(l.time))}` : ''}${l.amount ? ` · ${esc(l.amount)}` : ''}</span>`;
+  H.picks = P.CATEGORIES.map(([cid, name]) => {
+    const rows = P.CATALOG.filter((c) => c.cat === cid).map((c) => {
+      const on = P.isTicked(p, c.id);
+      const it = p.items.find((i) => i.cat === c.id), li = p.leadIn.find((l) => l.cat === c.id);
+      let sum = '';
+      if (on && c.carbs) {
+        const g = P.carbGuide(p.nutrition);
+        sum = g ? `<span class="sum">${esc(P.relDayRange(g.days))} · ${g.days.g[0]}–${g.days.g[1]} g a day</span>` : '<span class="sum unset">Enter your weight below</span>';
+      } else if (it) sum = itemSum(it);
+      else if (li) sum = daySum(li);
+      const chg = on && !c.carbs ? `<button type="button" class="chg" data-edit="${esc((it || li).id)}" data-kind="${it ? 'item' : 'day'}">Change</button>` : '';
+      return `<div class="pick"><input type="checkbox" id="pk-${c.id}" data-pick="${c.id}"${on ? ' checked' : ''}>
+        <label for="pk-${c.id}">${esc(c.label)}${sum}</label>${chg}</div>`;
+    });
+    const own = [...p.items.filter((i) => !i.cat && i.group === cid).map((i) => [i, 'item']), ...p.leadIn.filter((l) => !l.cat && l.group === cid).map((l) => [l, 'day'])]
+      .map(([x, kind]) => `<div class="pick"><input type="checkbox" checked data-own="${esc(x.id)}" data-kind="${kind}" aria-label="Remove ${esc(x.label)}">
+        <label>${esc(x.label)}${kind === 'item' ? itemSum(x) : daySum(x)}</label><button type="button" class="chg" data-edit="${esc(x.id)}" data-kind="${kind}">Change</button></div>`);
+    return `<div class="cat"><h3>${esc(name)}</h3>${rows.join('')}${own.join('')}
+      <button type="button" class="addown" data-add="${cid}">+ Add your own</button></div>`;
+  }).join('');
+}
+
+// Carb targets from published guideline ranges, for the weight entered.
+function renderCarbs(p) {
+  const n = p.nutrition;
+  $('carbCard').hidden = !n.show;
+  if (!n.show) return;
+  if (document.activeElement !== $('nWeight')) $('nWeight').value = n.weight ?? '';
+  $('nUnit').value = n.unit;
+  if (document.activeElement !== $('nFinish')) $('nFinish').value = n.finish ? P.hm(n.finish) : '';
+  const g = P.carbGuide(n);
+  H.carbOut = !g ? '<p class="empty" style="margin-top:12px">Enter your body weight to see your ranges.</p>' : `
+    <table class="carbs">
+      <tr><th>${esc(P.relDayRange(g.days).replace(/^./, (c) => c.toUpperCase()))}</th><td><b>${g.days.g[0]}–${g.days.g[1]} g</b> carbs a day<br><span class="hint" style="margin:0">${esc(g.days.name)}</span></td></tr>
+      <tr><th>Pre-race meal</th><td><b>${g.pre.g[0]}–${g.pre.g[1]} g</b> carbs<br><span class="hint" style="margin:0">1–4 g/kg, eaten 1–4 h before the start; the earlier you eat, the more toward the top</span></td></tr>
+      <tr><th>During the race</th><td>${g.during.total ? `<b>${g.during.total[0]}–${g.during.total[1]} g</b> in total<br>` : ''}<span class="hint" style="margin:0">${esc(g.during.text)}</span></td></tr>
+    </table>`;
+  $('carbSource').textContent = `Ranges from published sports-nutrition guidelines: ${P.CARB_SOURCE}. They're general guidelines for healthy adult athletes, not personal advice; practise your carb intake in training first, and talk to a dietitian or doctor if you have a medical condition or special diet.`;
 }
 
 function update(fn) { const p = plan(); if (!p) return; fn(p); save(); render(); }
 
+// ---- checklist ----
+$('picks').onchange = (e) => {
+  const cid = e.target.dataset.pick, own = e.target.dataset.own;
+  if (cid) {
+    if (e.target.checked) {
+      let added = null;
+      update((p) => { added = P.tick(p, cid); });
+      const c = P.catalogItem(cid);
+      // No suggested time: ask for one straight away.
+      if (added && added !== 'carbs' && (c.offset === null || c.day === null)) (P.isDayEntry(c) ? openDay : openItem)(added);
+      if (added === 'carbs') $('carbCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else update((p) => P.untick(p, cid));
+  } else if (own) {
+    const x = (e.target.dataset.kind === 'item' ? plan().items : plan().leadIn).find((y) => y.id === own);
+    if (confirm(`Remove "${x.label}" from your plan?`)) update((p) => {
+      p.items = p.items.filter((y) => y.id !== own);
+      p.leadIn = p.leadIn.filter((y) => y.id !== own);
+      for (const y of p.items) if (y.before?.id === own) y.before = null;
+    });
+    else e.target.checked = true;
+  }
+};
+$('picks').onclick = (e) => {
+  const ed = e.target.closest('[data-edit]'), add = e.target.closest('[data-add]');
+  if (ed) (ed.dataset.kind === 'item' ? openItem : openDay)(ed.dataset.edit);
+  if (add) (add.dataset.add === 'days' ? openDay : openItem)(null, add.dataset.add);
+};
+$('days').addEventListener('click', (e) => { if (e.target.closest('[data-carbs]')) $('carbCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+
+// ---- carbs ----
+$('nWeight').onchange = () => update((p) => { const v = +$('nWeight').value; p.nutrition.weight = v > 0 ? Math.round(v * 10) / 10 : null; });
+$('nUnit').onchange = () => update((p) => {
+  const u = $('nUnit').value;
+  if (u !== p.nutrition.unit && p.nutrition.weight) p.nutrition.weight = Math.round((u === 'lb' ? p.nutrition.weight * P.LB_PER_KG : p.nutrition.weight / P.LB_PER_KG) * 10) / 10;
+  p.nutrition.unit = u; setUnitPref(u);
+});
+$('nFinish').onchange = () => update((p) => { const v = P.parseOffset($('nFinish').value); p.nutrition.finish = v > 0 ? v : null; });
+
 // ---- plans ----
 function addPlan(p) { db.plans.push(p); db.current = p.id; save(); render(); $('planMsg').textContent = ''; }
-$('newBlank').onclick = () => addPlan(P.blankPlan(localToday(), deviceTz));
-$('newExample').onclick = () => addPlan(P.examplePlan(localToday(), deviceTz));
-$('newPlan').onclick = () => {
-  const ex = confirm('Start from the example? (OK = example with the usual slots, Cancel = blank)');
-  addPlan(ex ? P.examplePlan(localToday(), deviceTz) : P.blankPlan(localToday(), deviceTz));
-};
+const newPlan = () => { const p = P.blankPlan(localToday(), deviceTz); p.nutrition.unit = unitPref(); addPlan(p); };
+$('newBlank').onclick = newPlan;
+$('newPlan').onclick = newPlan;
 $('planSel').onchange = () => { db.current = $('planSel').value; save(); render(); };
 $('delPlan').onclick = () => {
   const p = plan();
@@ -408,7 +542,7 @@ $('cafLimit').onchange = () => update((p) => { const v = Math.round(+$('cafLimit
 $('alertMin').onchange = () => update((p) => { p.settings.alertMin = +$('alertMin').value; });
 
 // ---- item editor ----
-let editing = null;
+let editing = null, editingGroup = null;
 function syncActivity() {
   const act = $('iKind').value === 'activity';
   document.querySelectorAll('#itemForm .act').forEach((e) => { e.hidden = !act; });
@@ -424,14 +558,16 @@ $('iKind').onchange = syncActivity;
 $('iReact').onchange = syncActivity;
 $('iOffset').oninput = () => { const o = P.parseOffset($('iOffset').value); if (o !== null) $('iClock').value = P.clockAt(plan().race.start, o).hhmm; };
 $('iClock').oninput = () => { if ($('iClock').value) $('iOffset').value = P.hm(clockToOffset($('iClock').value)); };
-function openItem(id) {
+// Opens the item editor. A new item gets its kind from the checklist category.
+function openItem(id, group) {
   const p = plan();
-  const i = p.items.find((x) => x.id === id) || { id: null, label: '', kind: 'food', offset: 60, amount: '', caffeine: 0, rehearsed: '', note: '', duration: 20, moving: true, before: null, reaction: null };
-  editing = i.id;
+  const kind = { food: 'food', caffeine: 'caffeine', supplements: 'supplement', venue: 'activity', sleep: 'other' }[group] || 'food';
+  const i = p.items.find((x) => x.id === id) || { id: null, label: '', kind, offset: 60, amount: '', caffeine: 0, rehearsed: '', note: '', duration: 20, moving: true, before: null, reaction: null };
+  editing = i.id; editingGroup = i.group || group || P.groupOfKind(kind);
   $('itemTitle').textContent = i.id ? 'Change item' : 'Add an item';
   $('itemDel').hidden = !i.id;
-  $('iLabel').value = i.label; $('iKind').value = i.kind; $('iOffset').value = P.hm(i.offset);
-  $('iClock').value = P.clockAt(p.race.start, i.offset).hhmm;
+  $('iLabel').value = i.label; $('iKind').value = i.kind; $('iOffset').value = i.offset === null ? '' : P.hm(i.offset);
+  $('iClock').value = i.offset === null ? '' : P.clockAt(p.race.start, i.offset).hhmm;
   $('iDur').value = i.duration ?? 20; $('iMoving').value = i.moving === false ? '0' : '1';
   $('iAmount').value = i.amount; $('iCaf').value = i.caffeine || ''; $('iReh').value = i.rehearsed; $('iNote').value = i.note;
   $('iBeforeId').innerHTML = '<option value="">(no rule)</option>' + P.sortedItems(p).filter((x) => x.id !== i.id && x.kind !== 'activity')
@@ -443,7 +579,6 @@ function openItem(id) {
   $('itemDlg').showModal();
 }
 $('morning').onclick = (e) => { const r = e.target.closest('[data-item]'); if (r) openItem(r.dataset.item); };
-$('addItem').onclick = () => openItem(null);
 $('itemForm').onsubmit = (e) => {
   const action = e.submitter?.value;
   if (action === 'delete') {
@@ -455,14 +590,16 @@ $('itemForm').onsubmit = (e) => {
     return;
   }
   if (action !== 'save') return;
-  const offset = P.parseOffset($('iOffset').value);
+  const raw = $('iOffset').value.trim();
+  const offset = raw ? P.parseOffset(raw) : null;
   const err = !$('iLabel').value.trim() ? 'Give it a name.'
-    : offset === null || offset > 1440 ? 'Time before start: use h:mm, like 1:30 (or minutes, like 90).'
+    : raw && (offset === null || offset > 1440) ? 'Time before start: use h:mm, like 1:30 (or minutes, like 90).'
     : $('iReact').checked && !(+$('iTo').value > +$('iFrom').value) ? 'Reaction window: the "to" minutes must be more than "from".' : '';
   if (err) { e.preventDefault(); $('itemErr').textContent = err; return; }
   const act = $('iKind').value === 'activity';
+  const prev = plan().items.find((x) => x.id === editing);
   const item = {
-    id: editing || P.uid(), label: $('iLabel').value.trim().slice(0, 80), kind: $('iKind').value, offset,
+    id: editing || P.uid(), cat: prev?.cat || '', group: editingGroup, label: $('iLabel').value.trim().slice(0, 80), kind: $('iKind').value, offset,
     amount: act ? '' : $('iAmount').value.trim(), caffeine: act ? 0 : Math.max(0, Math.round(+$('iCaf').value || 0)),
     rehearsed: act ? '' : $('iReh').value.trim(), note: $('iNote').value.trim(),
     ...(act ? { duration: Math.max(0, Math.round(+$('iDur').value || 0)), moving: $('iMoving').value === '1' } : {}),
@@ -473,10 +610,12 @@ $('itemForm').onsubmit = (e) => {
 };
 
 // ---- day editor ----
-let editingDay = null;
-function openDay(id) {
-  const l = plan().leadIn.find((x) => x.id === id) || { id: null, label: '', amount: '', first: -3, last: -1, time: '', note: '' };
-  editingDay = l.id;
+let editingDay = null, editingDayGroup = null;
+function openDay(id, group) {
+  let l = plan().leadIn.find((x) => x.id === id) || { id: null, label: '', amount: '', first: -1, last: -1, time: '', note: '' };
+  editingDay = l.id; editingDayGroup = l.group || group || 'days';
+  $('dUnsetHint').hidden = l.first !== null;
+  if (l.first === null) l = { ...l, first: -3, last: -1 };
   $('dayTitle').textContent = l.id ? 'Change day item' : 'Add a day item';
   $('dayDel').hidden = !l.id;
   $('dLabel').value = l.label; $('dAmount').value = l.amount; $('dFirst').value = String(l.first); $('dLast').value = String(l.last);
@@ -484,14 +623,14 @@ function openDay(id) {
   $('dayDlg').showModal();
 }
 $('days').onclick = (e) => { const r = e.target.closest('[data-day]'); if (r) openDay(r.dataset.day); };
-$('addDay').onclick = () => openDay(null);
 $('dayForm').onsubmit = (e) => {
   const action = e.submitter?.value;
   if (action === 'delete') { update((p) => { p.leadIn = p.leadIn.filter((x) => x.id !== editingDay); }); return; }
   if (action !== 'save') return;
   if (!$('dLabel').value.trim()) { e.preventDefault(); $('dLabel').focus(); return; }
   const a = +$('dFirst').value, b = +$('dLast').value;
-  const l = { id: editingDay || P.uid(), label: $('dLabel').value.trim().slice(0, 80), amount: $('dAmount').value.trim(),
+  const prev = plan().leadIn.find((x) => x.id === editingDay);
+  const l = { id: editingDay || P.uid(), cat: prev?.cat || '', group: editingDayGroup, label: $('dLabel').value.trim().slice(0, 80), amount: $('dAmount').value.trim(),
     first: Math.min(a, b), last: Math.max(a, b), time: $('dTime').value.slice(0, 5), note: $('dNote').value.trim() };
   update((p) => { const k = p.leadIn.findIndex((x) => x.id === l.id); if (k >= 0) p.leadIn[k] = l; else p.leadIn.push(l); });
 };

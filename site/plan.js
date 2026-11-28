@@ -5,7 +5,7 @@
  *
  * A plan is one race:
  *   race     { name, date: "2026-12-18", start: "09:00", tz: "Europe/Paris" }
- *   settings { caffeineLimit: number|null, alertMin: 0 }
+ *   settings { alertMin: 0 }   (caffeineLimit from older plan files is ignored)
  *   items    race-morning items, timed in minutes before the start (`offset`):
  *            { id, label, kind, offset, amount, caffeine, rehearsed, note,
  *              duration, moving,                     (activities only)
@@ -234,13 +234,6 @@ export function warnings(plan) {
     }
   }
 
-  // Caffeine limit (only if the user set one).
-  const limit = Number(plan.settings?.caffeineLimit);
-  if (limit > 0) {
-    const run = caffeineRunning(plan);
-    const over = sortedItems(plan).find((i) => run.get(i.id) > limit);
-    if (over) out.push({ level: 'warn', ids: [over.id], text: `Caffeine reaches ${run.get(over.id)} mg at ${tminus(over.offset)} (${over.label}); your limit is ${limit} mg.` });
-  }
 
   // Picked from the checklist but no time set yet.
   const unset = [...plan.items.filter((i) => i.offset === null), ...plan.leadIn.filter((l) => l.first === null)];

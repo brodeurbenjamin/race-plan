@@ -177,10 +177,7 @@
     <div class="card" id="morningCard">
       <div class="head"><h2>Morning of</h2></div>
       <div class="rows" id="morning"></div>
-      <div class="grid noprint" style="margin-top:12px">
-        <div><label for="cafLimit">Caffeine limit, mg (optional)</label><input id="cafLimit" type="number" inputmode="numeric" min="0" max="5000" placeholder="Your own limit"></div>
-      </div>
-      <p class="hint noprint">Tap an item to change it.</p>
+      <p class="hint noprint" style="margin-top:12px">Tap an item to change it.</p>
     </div>
 
     <!-- Post race -->
@@ -347,7 +344,6 @@ function render() {
   $('tzSum').textContent = p.race.tz === deviceTz ? 'Racing in another time zone?' : `Race time zone: ${p.race.tz}`;
   renderPicks(p);
   renderCarbs(p);
-  $('cafLimit').value = p.settings.caffeineLimit ?? '';
   $('alertMin').value = String(p.settings.alertMin || 0);
   const n = P.daysBetween(localToday(), p.race.date);
   $('countdown').innerHTML = n > 1 ? `Race day in <b>${n} days</b>: ${esc(P.dayLabel(p.race.date))}, start ${esc(P.ampm(p.race.start))} race time.`
@@ -577,7 +573,6 @@ $('rDate').onchange = () => { if ($('rDate').value) update((p) => { p.race.date 
 $('rStart').onchange = () => { if ($('rStart').value) update((p) => { p.race.start = $('rStart').value.slice(0, 5); }); };
 $('rTz').onchange = () => update((p) => { p.race.tz = $('rTz').value; });
 $('rDur').onchange = () => update((p) => { const v = P.parseOffset($('rDur').value); p.race.duration = v >= 10 && v <= 600 ? v : null; });
-$('cafLimit').onchange = () => update((p) => { const v = Math.round(+$('cafLimit').value); p.settings.caffeineLimit = v > 0 ? v : null; });
 $('alertMin').onchange = () => update((p) => { p.settings.alertMin = +$('alertMin').value; });
 
 // ---- item editor ----
